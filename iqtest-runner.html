@@ -1,0 +1,144 @@
+<html>
+
+<head>
+	<title>IQTest Javascript Testing Framework Test Runner</title>
+	<script type="text/javascript" src="jquery-1.7.1.js" /></script>
+	<script type="text/javascript" src="when.js" /></script>
+	<script type="text/javascript" src="timeout.js" /></script>
+	<script type="text/javascript" src="iqtest.js" /></script>
+	<script type="text/javascript" src="iqtest-html-harness.js" /></script>
+
+</head>
+
+<body>
+<script type="text/javascript">
+	var glob;
+	// returns a promise 
+	var wait = function(secs) {
+	    var defer = when.defer();
+	    glob=10;
+	    window.setTimeout(function() {
+	        defer.resolve(secs);
+	    },secs*1000);
+	    return defer;    
+	};
+	var waitcb = function(secs,cb) {
+		 window.setTimeout(function() {
+	        cb(secs);
+	    },secs*1000);
+	};
+	$(document).ready(function(){
+		
+		$('#startTest').bind('click',function(e) {
+			iqtest
+			.writer($('#wrap'))
+			.test("test 1",function(a) {
+
+				glob=0;
+				a.areEqual(0,glob,"global value is 0")
+					.isTrue(false,"Should fail")
+					.then(function() {
+						a.areEqual(3,3,"Should fail 3=3");
+					}); 
+ 
+				var y=false;
+				a.areEqual(2,wait(2),"Waited 2 secs")
+				.isTrue(waitcb(3,a.callback()),"Waited 3 secs");
+
+				var cb = a.callback(function() {
+					return 123;
+				});
+				a.areEqual(124,waitcb(3,cb),"Hoping to get 123");
+
+				
+				a.areEqual(124,a.callback(function(cb) {
+			    		$('#sample').hide('slow',cb);
+			    	}, function(response) {
+			   			return "xxx";
+			    	}),"Hoping to get 'xxx'")
+				
+				.then(function() {
+					a.isFalse(y,"y is false");
+					a.areEqual(10,glob,"global got set by wait");	
+					y=true;
+				}).then(function()
+				{
+					a.areEqual(true,y,"y is now true");
+
+				});
+
+				a.areEqual(1,1,"Numbers are equal");
+				// then try a callback
+			})
+			.end();
+		});
+
+
+	});
+	if (1==2) {
+	$('document').ready(function() {
+		$('#startTest').bind('click',function(e) {
+			var t = iqtest.group();
+			e.preventDefault();1
+			
+			t.add("test 1",function(a) {
+				a.areEqual(2,a.defer(wait,2),"Waited five secs");
+			    a.areEqual(1,1,"Numbers are equal");
+			    a.isTrue(true,"A true test");
+			    
+			    a.isTrue(a.cback(function(cb) {
+			    		$('#sample').hide('slow',cb);
+			    	}, function(response) {
+			   			return true;
+			    	}),"Callback finished.");
+
+			});
+			t.add("test 2",function(a) {
+
+				a.areEqual("acde","fghij","Some strings");
+				
+				a.areEqual(2,a.defer(wait,3),"Waited 3 secs");
+			
+				a.isTrue(false,"A true test");
+				a.isTrue(true,"A true test");
+			
+				a.isFalse($('#sample').is(':visible'),'Sample is visible after being hidden');
+
+				a.isTrue(a.cback(function(cb) {
+					$('#sample').show('slow',cb);
+				}, function(response) {
+					debugger;
+					return $(this).is(':visible');
+				}),"Sample is visible after being shown again");
+
+				a.fail("fail");
+
+			});
+			t.outputWriter($('#wrap'));
+			t.run();
+			//t.run().then(function() {
+			//	window.setTimeout(
+			//		function() {  
+			//			var wrap = $('#wrap');
+			//			wrap.empty();
+			//	    	t.render(wrap);       
+			//		},50);
+			//});
+		});
+ 
+	});
+}
+
+</script>
+	<p>
+<b>Test Test Page</b> <a href="#" id="startTest">Run Tests</a>
+
+</p>
+<div id="wrap" >
+</div>
+
+<div id="sample">
+Hello!!
+</div>
+</body>
+</html>
