@@ -33,32 +33,44 @@
 	    },secs*1000);
 	};
 	$(document).ready(function(){
-		
+		var group = iqtest.writer($('#wrap'));
+
 		$('#startTest').bind('click',function(e) {
-			iqtest
-			.writer($('#wrap'))
-			.test("test 1",function(a) {
+			group
+			.configure({name: "Sample IQ Test Group"})
+			.test("Large Test (#1)",function(a) {
 
 				glob=0;
 				a.areEqual(0,glob,"global value is 0")
-					.isTrue(false,"Should fail")
+					.isTrue(true,"should pass")
 					.then(function() {
-						a.areEqual(3,3,"Should fail 3=3");
+						a.areEqual(3,3,"Numbers are equal (#1)");
 					}); 
- 
+
+				// uncomment to test testing error
+				// throw("Test error")
 				var y=false;
+
+				// uncomment to test timeout error
+				//a.resolves(wait(12),"Just waiting to resolve")
 				a.resolves(wait(2),"Just waiting to resolve")
-				.areEqual(2,wait(2),"Waited 2 secs and returned the parameter")
-				.isTrue(waitcb(3,a.callback()),"Waited 3 secs");
+					.areEqual(2,wait(2),"Waited 2 secs and returned the parameter")
+					.isTrue(waitcb(3,a.callback()),"Waited 3 secs");
 
 				var cb = a.callback(function() {
+					// uncomment to test testing error
+					//throw("callback err");
 					return 123;
 				});
-				a.areEqual(124,waitcb(3,cb),"Hoping to get 123");
+				a.areEqual(123,waitcb(3,cb),"Hoping to get 123");
 
 				var backprom = a.backpromise(function(cb) {
+					// uncomment to test testing error
+					//throw("backpromise function error");
 					$('#sample').hide('slow',cb);
 				}, function(response) {
+					// uncomment to test testing error
+					//throw("backpromise callback error");
 					return "xxx";
 				});
 			
@@ -74,10 +86,20 @@
 
 				});
 
-				a.areEqual(1,1,"Numbers are equal");
+				a.areEqual(1,1,"Numbers are equal")
+				.then(function()
+				{
+					throw("An error!");
+
+				}).then(function()
+				{
+					throw("Never get here!");
+				});
 				// then try a callback
 			})
-			.end();
+			.test("Small Test (#2)",function() {
+				this.areEqual(5,wait(5),"A five second wait to show concurrent testing");
+			});
 		});
 
 

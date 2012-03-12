@@ -13,18 +13,17 @@ var iqtest = (function (api) {
     var u,sigs,pubApi,Test, TestGroup, Assert,
     groupDefaults = {
         name: "Unnamed Test Group",   
-        groupStart: null,
-        groupEnd: null,
-        testStart: null,
-        testEnd: null,
-        itemStart: null,  
-        itemEnd: null
-
+         // when true, will not trap errors in the test itself.
+        debug: false
+        // events
+        
     },
     testDefaults = {
         name: "",
         desc: "Unnamed Test",
-        func: null
+        func: null,
+        timeoutSeconds: 10
+       
 
     };
 
@@ -90,17 +89,12 @@ var iqtest = (function (api) {
                 }
             }
         },
-        isDTest: function (obj) {
-            return obj && typeof obj.startDTest === 'function';
-        },
-        newChain: function(func){
-            window.setTimeout(func,50);
-        },
         event: function(func,that,parm) {
             if (u.isFunction(func)) {
                 func.call(that,parm);
             }
-        }
+        },
+        donothing: function() {}
     };
 
     // Map of the "actual" parameter position for functions where it isn't 1. This is special case
@@ -151,7 +145,7 @@ var iqtest = (function (api) {
         u.extend(this,groupDefaults);
         u.extend(this,options,true);
         this.promise=when.defer();
-        this.passed=true;
+        this.passed=null;
     };
     TestGroup.prototype = {
         constructor: TestGroup,
@@ -159,6 +153,7 @@ var iqtest = (function (api) {
         // representing the current test object.
         test: function (name, desc, func) {
             var test,
+                allPass=true,
                 lastPromise,
                 finishFunc,
                 me=this,
@@ -168,17 +163,32 @@ var iqtest = (function (api) {
                     desc: hasDesc ? desc : '',
                     func: hasDesc ? func : desc
                 };
-
             test = new Test(testData);
             test.group=me;
             if (me.tests.length===0){
                 u.event(me.groupStart,me,me);
             }
             me.tests.push(test);
+            test.id = me.tests.length;
             //run test right away
-            u.event(me.testStart,me,test);
+            u.event(test.testStart,test,test);
 
-            test.func.call(test,test);
+            if (me.debug) {
+                test.func.call(test,test);
+            } else {
+                try {
+                     test.func.call(test,test);
+                }
+                catch(err)
+                {
+                    //test.resolver.reject(err.toString());
+                    u.event(me.log,me,u.format("An error occurred in your test code: {0}. Debugging is enabled if you start again.",err.toString()));
+                    me.debug=true;
+                    me.passed=false;
+                    test.passed=false;
+                }
+
+            }
 
             // wait for everything to finish by binding to the last promise, and deferring each time
             // it changes as a result of a callback or something.
@@ -186,18 +196,24 @@ var iqtest = (function (api) {
             lastPromise=test.promise;
             finishFunc=function()
             {
+                
+
                 if (test.promise!==lastPromise) {
                     lastPromise=test.promise;
                     lastPromise.then(finishFunc,finishFunc);
                     return;
                 }
-                test.passed = (test.count===test.countPassed);
-                if (!test.passed) {
-                    me.passed=false;
+                if (typeof test.passed !== 'boolean') {
+                    test.passed = (test.count===test.countPassed);
                 }
-                u.event(me.testEnd,me,test);
+                allPass &= test.passed;
+                
+                u.event(test.testEnd,test,test);
 
                 if (test===me.tests[me.tests.length-1]){
+                    if (typeof me.passed !== 'boolean') {
+                        me.passed=allPass;
+                    }
                     u.event(me.groupEnd,me,me);
                 }
             };
@@ -224,15 +240,16 @@ var iqtest = (function (api) {
                 });
                 return group;
             }
-        }, 
-        end: function() {
-            this.promise.then(function() {
-                u.event(this.groupEnd,this,this);
-            },function(err) {
-                //TODO: handle
-                alert('debug: group "end" resolved with fail');
-            });
-        }
+        },
+        configure: function(options) {
+            var allowed = u.extend({},groupDefaults);
+            u.extend(allowed,options,true);
+            u.extend(this,allowed);
+            return this;
+        },
+        // events
+        groupStart: u.donothing,
+        groupEnd: u.donothing
     };
 
     // A test object. After running tests, the "results" contains an array of strings describing
@@ -248,8 +265,12 @@ var iqtest = (function (api) {
             count: 0,
             countPassed: 0,
             countFailed: 0,
-            group:null
+            group:null,
+            nextThen: [],
+            resolver: null
         });
+        this.id=null;
+        // the first promise should begin resolved (it kicks things off)
         me.promise.resolve();
     };
 
@@ -318,15 +339,61 @@ var iqtest = (function (api) {
 
             }
         },
-        then: function() {
-            // TODO wrap to handle test errors
-            return this.promise.then.apply(this.promise,u.toArray(arguments));
+        // set timeout only for the next test
+        timeout: function(seconds) {
+            var me=this,
+                originalTimeout = me.timeoutSeconds;
+            me.then(function() {
+                me.timeoutSeconds = seconds;
+            });
+            me.afterNext(function() {
+                me.timeoutSeconds = originalTimeout;
+            });
+        },
+        // set options for this test 
+        configure: function(options) {
+            var allowedOpts =u.extend({},testDefaults);
+            // update with current options, then with options passed
+            u.extend(allowedOpts,this,options,true);
+            u.extend(this,allowedOpts);
+        },
+
+        // these methods should not be used by the public
+        // TODO move them
+
+        // queue a callback to attach to the next thing queued.
+        then: function(callback,errback) {
+            var me=this,
+                errFunc=function(err) {
+                    // failures of everything end up here - if we've already broken for a particular reason then 
+                    // stop logging all the inevitable timeouts.
+                    me.testerror(err,false);
+                };
+
+            function doThen(callback,errback) {
+                me.promise.then(callback, errback || errFunc);
+            }
+
+            doThen(callback,errback);
+            
+            if (me.afterNext.length>0) {
+                u.each(function(i,obj) {
+                    doThen(obj.callback,obj.errback);
+                });
+                me.afterNext=[];
+            }
+            return me;
+        },
+        // call when a critical error should prevent further test execution,
+        afterNext: function(callback,errback) {
+            this.nextThen.push({callback:callback, errback:errback});
         },
         startTest: function (info) {
             var eventParm = u.extend({},info.assertArgs);
             this.count++;
             u.extend(eventParm,{count:this.count});
-            u.event(this.group.itemStart,this.group,eventParm);
+            u.event(this.itemStart,this,eventParm);
+            this.itemRunning=true;
         },
         endTest: function (result) {
             // TODO: Option allowing logging of passed tests
@@ -339,13 +406,15 @@ var iqtest = (function (api) {
             } else {
                 this.countPassed++;
             }
-            u.event(this.group.itemEnd,this.group,output);
+            this.itemRunning=false;
+            u.event(this.itemEnd,this,output);
         },
 
         // run a named test using the arguments in array args
         runTest: function (assertFuncName, args) {
             // should return an object [err: error message, desc: description of test passed in]
             var testResult;
+
             //args is an object mapped to the relevant parms for any assert
             testResult = this.impl[assertFuncName].call(this, args);
             testResult.assertFuncName = assertFuncName;
@@ -382,8 +451,8 @@ var iqtest = (function (api) {
         runTestNow: function(assertFuncName,args)
         {
             // wrap literal values in the DTest object anyway - they will just be resolved
-            var me=this,testFunc, 
-                failFunc, successFunc,
+            var me=this,testFunc, defer,
+                successFunc,
                 actualIsPromise=false,
                 pending=[],
                 assertArgs = sigs[assertFuncName].apply(me,args);
@@ -391,21 +460,17 @@ var iqtest = (function (api) {
             // some tests don't have an "actual" part (e.g. pass,fail).  
             //TODO allow defer for either argument
 
-            failFunc = function(reason) {
-                return me.runTest.call(me,
-                    "fail",
-                    {desc: assertArgs.desc, err: reason.toString()}
-                );
-            };
             successFunc=function(response)
             {
                 assertArgs.actual=response;
             };
             testFunc= function() {                
-                return me.runTest.call(me,
-                    assertFuncName,
-                    assertArgs);
-                };
+                if (me.runTest.call(me,assertFuncName,assertArgs)) {
+                    defer.resolve();
+                } else {
+                    defer.reject("The test failed.");
+                }
+            };
 
             // wait for any callbacks
             actualIsPromise=when.isPromise(assertArgs.actual);
@@ -418,9 +483,11 @@ var iqtest = (function (api) {
 
             if (me.cbPromise) {
                 if (actualIsPromise) {
-                    return failFunc("The actual value passed is a promise, but a callback has also been initiated");
+                    defer.reject("The actual value passed is a promise, but a callback has also been initiated");
                 }
-                me.cbPromise.then(successFunc,failFunc);
+                me.cbPromise.then(successFunc,function(err) {
+                    defer.reject("The callback failed. " + err ? u.format('Reason: {0}',err.toString()) : '');
+                });
                 pending.push(me.cbPromise);
                 me.cbPromise=null;
             }
@@ -430,10 +497,9 @@ var iqtest = (function (api) {
                 me.startTest({assertArgs: assertArgs, assertFuncName: assertFuncName});
             });
 
-
             // wait for any promises
             if (actualIsPromise) {
-                assertArgs.actual.then(successFunc,failFunc);
+                assertArgs.actual.then(successFunc);
                 pending.push(assertArgs.actual);
             }
 
@@ -441,35 +507,121 @@ var iqtest = (function (api) {
                 pending.push(me.promise);
                 me.promise = when.all(pending);
             }
-            me.promise.then(testFunc,failFunc);
+            //
+
+            // link  each test to a new resolver so failures will break the chain at that point
+            
+            defer = when.defer();
+
+            me.then(testFunc, function(err) {
+                defer.reject(err);
+            });
+
+            me.promise = when_timeout(defer.promise, me.timeoutSeconds*1000);
+            me.resolver=defer.resolver;
 
             return me;
+        },
+        // when the debugging parm is true, will enable debugging for the group
+        testerror: function(err, debugging) {
+            var me=this;
+            if (me.resolver) {
+                me.resolver.reject(err);
+                me.resolver=null;
+            }
+            if (this.stopped) {
+                return;
+            }
+            this.stopped=true;
+            
+            u.event(me.group.log,me.group,
+                u.format("{0}. {1}",err.toString(),
+                    debugging ? "Debugging is enabled if you start again." : "" ));
+
+            me.group.debug=true;
+            me.passed=false;
+
         },
         // create a callback that the next assert will wait for, optionally expiring.
         callback: function(target,timeout) {
             var me=this,
                 defer = when.defer();
-            me.cbPromise =  when_timeout(defer, timeout ? timeout * 1000 : 10000);
+
+            // if no timeout is specified, the actual function is arleady wrapped by a timeout so not needed
+            me.cbPromise = timeout ? 
+                 when_timeout(defer, timeout * 1000) :
+                 defer;
             
             return function() {
-                var value = !target ? 
-                    true:
-                    target.apply(me,u.toArray(arguments));
+                var value;
+                if (!target) {
+                    value=true;
+                } else {
+                    if (me.group.debug) {
+                        value=target.apply(me,u.toArray(arguments));
+                    } else {
+                        try
+                        {
+                            value=target.apply(me,u.toArray(arguments));
+                        }
+                        catch(err)
+                        {
+                            me.testerror("An error occurred in your callback(): "+err,true);
+                            defer.reject(value);
+                            return;
+                        }
+                    }
+                }
                 defer.resolve(value);
             };
         },
         // return a promise from a function that has a callback parameter
         backpromise: function(func,callback,timeout) {
-            var inner=when.defer(),
+            var defer=when.defer(),
                 me=this,
-                p = when_timeout(inner, timeout ? timeout * 1000 : 10000),
                 cb=function() {
-                    inner.resolve(callback.apply(this,u.toArray(arguments)));
-                };
+                    var value;
+                    if (me.group.debug) {
+                        value=callback.apply(this,u.toArray(arguments));
+                    } else {
+                        try
+                        {
+                            value=callback.apply(this,u.toArray(arguments));
+                        }
+                        catch(err)
+                        {
+                            me.testerror("An error occurred in your backpromise() callback: "+err,true);
+                            defer.reject(value);
+                            return;
+                        }
+                    }
 
-            func.call(me,cb);
-            return p;
-        }      
+                    defer.resolve(value);
+                };
+            
+            if (me.group.debug) {
+                func.call(me,cb);
+            } else {
+                try
+                {
+                    func.call(me,cb);
+                }
+                catch(err)
+                {
+                    me.testerror("An error occurred in your backpromise() function: "+err,true);
+                    defer.reject();
+                    return;
+                }
+            }
+
+            
+            return timeout ? when_timeout(defer, timeout*1000) : defer;
+        },
+        testStart: u.donothing,
+        testEnd: u.donothing,
+        itemStart: u.donothing,  
+        itemEnd: u.donothing,
+        log: u.donothing
     };
 
     // Map each method of "impl" to a public method that wraps it and calls runTest

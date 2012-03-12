@@ -15,14 +15,14 @@
 		tpl = {
 			group:'<pre><h1>Starting test group "<iq-name></iq-name>": <iq-groupresult></iq-groupresult></h1>'+
 				'<div><div></div></div></pre>',
-			testStart: '<h2>Starting test "<iq-name></iq-name>": <iq-testresult></iq-testresult></h2>',
-			testEnd: '<h3><iq-count></iq-count> tests run; <iq-countPassed></iq-countPassed> passed; '+
-				'<iq-countFailed></iq-countFailed> failed.</h3>',
-			itemStart: '<span>Running test #<iq-count></iq-count>: '
-					+'<iq-assertFuncName></iq-assertFuncName> "<iq-desc></iq-desc>"</span>',
+			testStart: '<h2>Starting test "<iq-name></iq-name>": <iq-testresult></iq-testresult></h2><div></div>',
+			testEnd: '<h3><iq-count></iq-count> tests items finished.</h3>',
+			itemStart: '<span style="color: blue;font-style: italic;">Running test #<iq-count></iq-count>: '
+					+'<iq-assertFuncName></iq-assertFuncName> "<iq-desc></iq-desc>"....</span><br/>',
 			itemEnd: '<span><iq-fulltext></iq-fulltext></span><br/>',
 			resultSuccess: '<span style="color:green"><iq-resulttext></iq-resulttext></span>',
-			resultFail:'<span style="color:red"><iq-resulttext></iq-resulttext></span>'
+			resultFail:'<span style="color:red"><iq-resulttext></iq-resulttext></span>',
+			log: '<span style="color:purple"><iq-message></iq-message></span><br/>'
 		};
 	
 	iqtest.templates=tpl;
@@ -52,75 +52,89 @@
 			oldRun.call(this).then(function(t) {
 				u.newChain(
 					function() {  
-						
 						t.group.render(wrap);       
 					}
 				);
 			});
 	};
-	iqtest.impl.TestGroup.prototype.writer=function(el) {
-		var wrap = $(el);
-		wrap.empty();
+	u.extend(iqtest.impl.TestGroup.prototype,
+	{
+		writer: function(el) {
+			var wrap = $(el);
+			wrap.empty();
 
-		this.outputTarget = wrap;
-		this.groupStart = function(group) {
+			this.outputTarget = wrap;
+			return this;
+		},
+		groupStart: function(group) {
 			var groupWrapper = u.tmpReplace($(tpl.group).clone(),group);
 			this.outputTarget.append(groupWrapper);
 			// should be the innermost div
-			this.groupTarget = groupWrapper;
-			this.testTarget = groupWrapper.find('div:only-child:last');
+			this.groupWrapper = groupWrapper;
+			this.target = groupWrapper.find('div:only-child:last');
 
-		};
-		this.groupEnd = function(group) {
+		},
+		groupEnd: function(group) {
 			var result = getResultOutput(group.passed);
-			this.groupTarget.find('iq-groupresult').replaceWith(result);
-		};
-		this.testStart = function(test) {
+			this.groupWrapper.find('iq-groupresult').replaceWith(result);
+		},
+		render: function(el) {
+			this.outputTarget = el;
+			u.each(this.tests,function(i,test) {
+				test.render();
+			});
+
+		}
+	});
+
+	u.extend(iqtest.impl.Test.prototype,
+	{
+		testStart: function(test) {
+			
 			var content= u.tmpReplace($(tpl.testStart).clone(),test);
-			this.testTarget.append(content);
-		};
-		this.testEnd = function(test) {
+			this.target = content.filter('div');
+			this.group.target.append(content);
+		},
+		testEnd: function(test) {
 			var result,
 				content = u.tmpReplace($(tpl.testEnd).clone(),test);
-			this.testTarget.append(content);
+			this.target.append(content);
 			
 			result = getResultOutput(test.passed);
-			this.testTarget.find('iq-testresult').replaceWith(result);
-		};
-		this.itemStart=function(testinfo)
+			this.target.find('iq-testresult').replaceWith(result);
+		},
+		itemStart: function(testinfo)
 		{
 			var tempItem= u.tmpReplace($(tpl.itemStart),testinfo);
 			this.itemTarget = tempItem;
-			this.testTarget.append(tempItem);
-		};
-		this.itemEnd = function(response) {
+			this.target.append(tempItem);
+		},
+		itemEnd: function(response) {
+			// this can get called without itemStart (prob should create a different kind of event for errors but...)
+
 			if (response.passed) {
 				this.itemTarget.remove();
 			} else {
 				this.itemTarget.replaceWith(u.tmpReplace($(tpl.itemEnd).clone(),response));
 			}
+			this.itemTarget=null;
 			response.written=true;
-		};
-		return this;
-	};
-	iqtest.impl.TestGroup.prototype.render = function(el) {
-		this.outputTarget = el;
-		u.each(this.tests,function(i,test) {
-			test.render();
-		});
+		},
+		log: function(message) {
+			this.target.append(u.tmpReplace($(tpl.log).clone(),{message: message}));
+		},
+		render: function() {
+			var me=this;
 
-	};
-	iqtest.impl.Test.prototype.render=function() {
-		var me=this;
-
-		u.each(me.results,function(i,result) {
-			if (!result.written) {
-				u.event(this.group.itemEnd,this.group,result);
-			}
-		});
+			u.each(me.results,function(i,result) {
+				if (!result.written) {
+					u.event(this.group.itemEnd,this.group,result);
+				}
+			});
+		}
+	});
 
 
-	};
 	iqtest.writer =function (el) {
          var group = new iqtest.impl.TestGroup();
          group.writer(el);
