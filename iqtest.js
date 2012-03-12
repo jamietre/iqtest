@@ -178,7 +178,7 @@ var iqtest = (function (api) {
             //run test right away
             u.event(me.testStart,me,test);
 
-            test.func.apply(test,test);
+            test.func.call(test,test);
 
             // wait for everything to finish by binding to the last promise, and deferring each time
             // it changes as a result of a callback or something.
@@ -273,11 +273,17 @@ var iqtest = (function (api) {
             },
             fail: function (args) {
                 return {
-                    err: args.actual,
+                    err: args.err,
                     desc: args.desc
                 };
             },
-            
+            // cannot fail - a failure would result in "fail" being called
+            resolves: function(args) {
+                return {
+                    err: '',
+                    desc: args.desc
+                };
+            },
             isTrue: function (args) {
                 return _isTrue(args,args.actual===true,"true");
             },
@@ -311,21 +317,6 @@ var iqtest = (function (api) {
                 return result;
 
             }
-        },
-        // either replace the current promise with a new one that is linked to the previous one,
-        // or create a new promise for a function
-        chain: function(func) {
-
-            if (when.isPromise(func)) {
-                this.promise = when.all([this.promise,func]);
-            } else {
-                this.promise = this.promise.then(func, 
-                    function(err) {
-                    alert(u.format("debug: chained promise failed '{0}'", err));
-                });
-            }
-            
-            return this.promise;
         },
         then: function() {
             // TODO wrap to handle test errors
@@ -401,15 +392,16 @@ var iqtest = (function (api) {
             //TODO allow defer for either argument
 
             failFunc = function(reason) {
-                me.impl.fail({desc: assertArgs.desc, err: reason});
+                return me.runTest.call(me,
+                    "fail",
+                    {desc: assertArgs.desc, err: reason.toString()}
+                );
             };
             successFunc=function(response)
             {
                 assertArgs.actual=response;
             };
-            testFunc= function() {
-                me.startTest({assertArgs: assertArgs, assertFuncName: assertFuncName});
-                
+            testFunc= function() {                
                 return me.runTest.call(me,
                     assertFuncName,
                     assertArgs);
@@ -423,6 +415,7 @@ var iqtest = (function (api) {
             // this particular method, but the single-threaded nature of javascript should cause this to work fine. 
             // I can't see any substantive risk here and it is extraordinarily convenient.
 
+
             if (me.cbPromise) {
                 if (actualIsPromise) {
                     return failFunc("The actual value passed is a promise, but a callback has also been initiated");
@@ -432,6 +425,12 @@ var iqtest = (function (api) {
                 me.cbPromise=null;
             }
 
+            // show start indicator
+            me.promise.then(function() {
+                me.startTest({assertArgs: assertArgs, assertFuncName: assertFuncName});
+            });
+
+
             // wait for any promises
             if (actualIsPromise) {
                 assertArgs.actual.then(successFunc,failFunc);
@@ -440,12 +439,11 @@ var iqtest = (function (api) {
 
             if (pending.length) {
                 pending.push(me.promise);
-                me.chain(when.all(pending));
+                me.promise = when.all(pending);
             }
-            me.chain(testFunc);
+            me.promise.then(testFunc,failFunc);
 
             return me;
-
         },
         // create a callback that the next assert will wait for, optionally expiring.
         callback: function(target,timeout) {
@@ -466,7 +464,7 @@ var iqtest = (function (api) {
                 me=this,
                 p = when_timeout(inner, timeout ? timeout * 1000 : 10000),
                 cb=function() {
-                    p.resolve(callback.apply(this,u.toArray(arguments)));
+                    inner.resolve(callback.apply(this,u.toArray(arguments)));
                 };
 
             func.call(me,cb);

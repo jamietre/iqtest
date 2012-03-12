@@ -4,13 +4,14 @@ A promise-aware testing framework for Javascript
 
 3/12/2012: version 0.1
 
-### What is this?
+### What is this? 
+###### Why would you make YATF (Yet Another Testing Framework)?
 
-iqtest is a unit testing framework that leverages promises to make your life much easier. A promise is something that supports the CommonJS [Promise/A](http://wiki.commonjs.org/wiki/Promises/A) api. 
+iqtest is a unit testing framework that leverages promises to make your life much easier. A promise is something that supports the [CommonJS](http://www.commonjs.org/ "CommonJS") [Promise/A](http://wiki.commonjs.org/wiki/Promises/A) api. 
 
 Unit testing Javascript is historically a big pain because of the lack of adequate language features to write concise event-handling code.
 
-Some more recent works have improved matters, e.g. Mocha. From the outset, though, I never got into Jasmine or Mocha because I didn't want to learn a new language. I know that creating Javascript constructs that resemble human communication is all the rage. Personally, I value conciseness and the adoption of common pardigms, to verbosity and the necessity to learn a new set of verbs for every tool I use. No offense if you like MacchianoAmericanoScript and stuff. I just like to speak to my computer in the most direct and least ambiguous way possible.
+Some more recent works have improved matters, e.g. [Mocha](http://visionmedia.github.com/mocha/ "Mocha"). From the outset, though, I never got into Jasmine or Mocha because I didn't want to learn a new language. I know that creating Javascript constructs that resemble human communication is all the rage. Personally, I value conciseness and the adoption of common pardigms, to verbosity and the necessity to learn a new set of verbs for every tool I use. No offense if you like MacchianoAmericanoScript and stuff. I just like to speak to my computer in the most direct and least ambiguous way possible.
 
 As much as I just want a framework that uses common, simple functions like `areEqual` instead of a whole new language, though, I could have forgiven that if it allowed me to write concise tests.
 

@@ -15,7 +15,9 @@
 <script type="text/javascript">
 	/*jslint onevar: false */
 	/*global when, iqtest */
+
 	var glob;
+
 	// returns a promise 
 	var wait = function(secs) {
 	    var defer = when.defer();
@@ -45,7 +47,8 @@
 					}); 
  
 				var y=false;
-				a.areEqual(2,wait(2),"Waited 2 secs")
+				a.resolves(wait(2),"Just waiting to resolve")
+				.areEqual(2,wait(2),"Waited 2 secs and returned the parameter")
 				.isTrue(waitcb(3,a.callback()),"Waited 3 secs");
 
 				var cb = a.callback(function() {
@@ -53,13 +56,13 @@
 				});
 				a.areEqual(124,waitcb(3,cb),"Hoping to get 123");
 
-				var backprom = backpromise(function(cb) {
-			    		$('#sample').hide('slow',cb);
-			    	}, function(response) {
-						return "xxx";
-			    	});
-				
-				a.areEqual(124,backprom,"Hoping to get 'xxx'")
+				var backprom = a.backpromise(function(cb) {
+					$('#sample').hide('slow',cb);
+				}, function(response) {
+					return "xxx";
+				});
+			
+				a.areEqual('xxx',backprom,"Hoping to get 'xxx'")
 
 				.then(function() {
 					a.isFalse(y,"y is false");
@@ -79,60 +82,6 @@
 
 
 	});
-	if (1==2) {
-	$('document').ready(function() {
-		$('#startTest').bind('click',function(e) {
-			var t = iqtest.group();
-			e.preventDefault();1
-			
-			t.add("test 1",function(a) {
-				a.areEqual(2,a.defer(wait,2),"Waited five secs");
-			    a.areEqual(1,1,"Numbers are equal");
-			    a.isTrue(true,"A true test");
-			    
-			    a.isTrue(a.cback(function(cb) {
-			    		$('#sample').hide('slow',cb);
-			    	}, function(response) {
-			   			return true;
-			    	}),"Callback finished.");
-
-			});
-			t.add("test 2",function(a) {
-
-				a.areEqual("acde","fghij","Some strings");
-				
-				a.areEqual(2,a.defer(wait,3),"Waited 3 secs");
-			
-				a.isTrue(false,"A true test");
-				a.isTrue(true,"A true test");
-			
-				a.isFalse($('#sample').is(':visible'),'Sample is visible after being hidden');
-
-				a.isTrue(a.cback(function(cb) {
-					$('#sample').show('slow',cb);
-				}, function(response) {
-					debugger;
-					return $(this).is(':visible');
-				}),"Sample is visible after being shown again");
-
-				a.fail("fail");  
-
-			});
-			t.outputWriter($('#wrap'));
-			t.run();
-			//t.run().then(function() {
-			//	window.setTimeout(
-			//		function() {  
-			//			var wrap = $('#wrap');
-			//			wrap.empty();
-			//	    	t.render(wrap);       
-			//		},50);
-			//});
-		});
- 
-	});
-}
-
 </script>
 	<p>
 <b>Test Test Page</b> <a href="#" id="startTest">Run Tests</a>
