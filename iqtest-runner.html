@@ -1,3 +1,4 @@
+
 <html>
 
 <head>
@@ -12,6 +13,8 @@
 
 <body>
 <script type="text/javascript">
+	/*jslint onevar: false */
+	/*global when, iqtest */
 	var glob;
 	// returns a promise 
 	var wait = function(secs) {
@@ -50,13 +53,14 @@
 				});
 				a.areEqual(124,waitcb(3,cb),"Hoping to get 123");
 
-				
-				a.areEqual(124,a.callback(function(cb) {
+				var backprom = backpromise(function(cb) {
 			    		$('#sample').hide('slow',cb);
 			    	}, function(response) {
-			   			return "xxx";
-			    	}),"Hoping to get 'xxx'")
+						return "xxx";
+			    	});
 				
+				a.areEqual(124,backprom,"Hoping to get 'xxx'")
+
 				.then(function() {
 					a.isFalse(y,"y is false");
 					a.areEqual(10,glob,"global got set by wait");	
@@ -111,7 +115,7 @@
 					return $(this).is(':visible');
 				}),"Sample is visible after being shown again");
 
-				a.fail("fail");
+				a.fail("fail");  
 
 			});
 			t.outputWriter($('#wrap'));

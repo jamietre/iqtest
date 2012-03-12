@@ -12,12 +12,12 @@ MIT License
 var iqtest = (function (api) {
     var u,sigs,pubApi,Test, TestGroup, Assert,
     groupDefaults = {
-        name: "Unnamed Test Group",
+        name: "Unnamed Test Group",   
         groupStart: null,
         groupEnd: null,
         testStart: null,
         testEnd: null,
-        itemStart: null,
+        itemStart: null,  
         itemEnd: null
 
     },
@@ -110,9 +110,16 @@ var iqtest = (function (api) {
         pass: function (desc) {
             return { desc: desc };
         },
-        fail: function (actual ,desc ) {
+        fail: function (err ,desc ) {
             return {
-                actual: actual || "[the test was aborted]",
+                actual: err || "[the test was aborted]",
+                desc: desc
+            };
+        },
+        // just assert that a callbacl resolves
+        resolves: function(promise,desc) {
+            return {
+                actual: promise,
                 desc: desc
             };
         },
@@ -171,7 +178,7 @@ var iqtest = (function (api) {
             //run test right away
             u.event(me.testStart,me,test);
 
-            test.func(test.assert);
+            test.func.apply(test,test);
 
             // wait for everything to finish by binding to the last promise, and deferring each time
             // it changes as a result of a callback or something.
@@ -198,6 +205,7 @@ var iqtest = (function (api) {
             return me;
         },
         then: function(name,func) {
+            //TODO broken
             if (u.isFunction(name)) {
                 // treat as a regular promise "then"
                 this.promise =this.promise.then.apply(this.promise,u.toArray(arguments));
@@ -224,68 +232,6 @@ var iqtest = (function (api) {
                 //TODO: handle
                 alert('debug: group "end" resolved with fail');
             });
-        },
-        run: function (name) {
-            var returnPromise,
-                firstTest,
-                lastTest,
-                me = this;
-            
-            u.each(me.tests, function (i, test) {
-                var finalCallback;
-                if (!name || test.name === name) {
-                    
-                    // Main entry point to tests.
-                    // This does not actually run the tests yet since they
-                    // are all deferred but creates 'domino' method
-                    
-                    //test.func(test.assert, function () {
-                    //    return test.defer.apply(test, Array.prototype.slice.call(arguments, 0));
-                    //});
-                    test.func(test.assert);
-
-                    if (lastTest) {
-                        // for the very last test, bind another resolver for the "group end". we have to add it when
-                        // calling the run() to ensure it is fired last, just binding to the last lastPromise would
-                        // cause it to fire before the test end event
-                        if (i===me.tests.length-1) {
-                            finalCallback=function() {
-                                var fail=false;
-                                u.each(me.tests,function(i,test) {
-                                    if (!test.passed) {
-                                        fail=true;
-                                        return false;
-                                    }
-                                });
-                                me.passed = !fail;
-                                u.event(me.groupEnd,me,me);
-                            };
-                        }
-                        lastTest.lastPromise.then(function() {
-                            u.newChain(function() {
-                                var defer = test.run();
-                                if (finalCallback) {
-                                    defer.then(finalCallback);
-                                }
-                            });
-                        });
-                    }
-                    if (!firstTest) {
-                        firstTest = test;
-                    }
-                    lastTest = test;
-                }
-            });
-
-            if (firstTest) {
-
-                returnPromise = firstTest.run();
-
-            } else {
-                returnPromise = when.defer();
-                returnPromise.resolve(this);
-            }
-            return returnPromise;
         }
     };
 
@@ -302,8 +248,7 @@ var iqtest = (function (api) {
             count: 0,
             countPassed: 0,
             countFailed: 0,
-            group:null,
-            assert: new Assert(me)
+            group:null
         });
         me.promise.resolve();
     };
@@ -321,8 +266,6 @@ var iqtest = (function (api) {
     }
     Test.prototype = {
         constructor: Test,
-        // will be mapped from "impl" with a wrapper
-        assert: {},
         // the methods
         impl: {
             pass: function (args) {
@@ -466,20 +409,27 @@ var iqtest = (function (api) {
             };
             testFunc= function() {
                 me.startTest({assertArgs: assertArgs, assertFuncName: assertFuncName});
-                    return me.runTest.call(me,
-                        assertFuncName,
-                        assertArgs);
+                
+                return me.runTest.call(me,
+                    assertFuncName,
+                    assertArgs);
                 };
 
             // wait for any callbacks
             actualIsPromise=when.isPromise(assertArgs.actual);
-            if (me.assert.promise) {
+
+            // check for the "magic" callback. If me.cbPromise exists, then it was hopefully created by the parameters
+            // for this method. This is slightly brittle because there's no direct binding of the particular promise to 
+            // this particular method, but the single-threaded nature of javascript should cause this to work fine. 
+            // I can't see any substantive risk here and it is extraordinarily convenient.
+
+            if (me.cbPromise) {
                 if (actualIsPromise) {
                     return failFunc("The actual value passed is a promise, but a callback has also been initiated");
                 }
-                me.assert.promise.then(successFunc,failFunc);
-                pending.push(me.assert.promise);
-                me.assert.promise=null;
+                me.cbPromise.then(successFunc,failFunc);
+                pending.push(me.cbPromise);
+                me.cbPromise=null;
             }
 
             // wait for any promises
@@ -489,206 +439,63 @@ var iqtest = (function (api) {
             }
 
             if (pending.length) {
-                
                 pending.push(me.promise);
                 me.chain(when.all(pending));
             }
             me.chain(testFunc);
 
-            // if (assertArgs.actual && u.isDTest(assertArgs.actual)) {
-            //     dtest = assertArgs.actual;
-            //     dtest.assertArgs = assertArgs;
-            //     dtest.assertFuncName = assertFuncName;
-                
-            //     me.chain(function() {
-            //         dtest.startDTest();
-            //     });
-
-            //     me.setPromise(dtest.promise);           
-            
-            //} 
-            //else {
-                // hook it up directly to the end of the chain
-
-            //}
-            return me.assert;
+            return me;
 
         },
-        defer: function(func)
-        {
-            return this._defer({
-                func: func, 
-                args: u.toArray(arguments, 1)
-            });
-        },
-        // should be passed function(cb), cb=>function(resp) 
-        cback: function(func,callback) {
-            return this._defer({
-                func: func, 
-                callback: callback
-            });
-        },
-        // An object to hold a test until it's time for it to be called
-        // func must return a promise, or be a literal in which case it will just
-        // be returned directly
-        _defer: function (args) {
-            var testObj = this,
-                DTest = function (args) {
-                    this.func = args.func;
-                    this.args = args.args;
-                    this.callback = args.callback;
-
-                    this.promise = when.defer();
-                    // these will be assigned before the "startDTest" function is bound to a promise
-                    this.assertFuncName=null;
-                    this.assertArgs = null;
-                    this.testObj = testObj;
-
-                };
-
-            DTest.prototype.startDTest = function () {
-                var me = this,
-                        pr;
-
-                me.testObj.startTest(me);
-
-                try {
-                    if (!u.isFunction(me.func)) {
-                        pr = when.defer();
-                        pr.resolve(me.func);
-                    } else if (me.callback) {
-                        pr = when.defer();
-                        this.func.call(null,function() {
-                            pr.resolve(me.callback.apply(this,u.toArray(arguments)));
-                        });
-                    } else {
-                        // it should return a promise
-                        pr=this.func.apply(null, this.args);
-                    } 
-                }
-                // TODO: literals should not need to use a resolver. This creates big stacks
-                catch(err) {
-                    me.assertFuncName="fail";
-                    pr = when.defer();
-                    pr.resolve(u.format('an uncaught error occurred: "{0}"',err.toString()));
-                }
-
-                return pr.then(function (response) {
-                    // finally - run the actual test. 
-
-                    try {
-                        me.assertArgs.actual= response;
-
-                        me.testObj.runTest.call(me.testObj,
-                                        me.assertFuncName,
-                                        me.assertArgs);
-                    }
-                    catch (err) {
-                        me.testObj.results.push({passed:false,
-                                                 desc: me.assertArgs.desc,
-                                                 err: err.toString()});                                                
-                    }
-                    finally {
-                        me.promise.resolve();
-                    }
-                }, function (err) {
-                    try {
-                        me.testObj.assert.impl.fail(me.desc, err);
-                    }
-                    catch (tryerr) {
-                        me.testObj.results.push({passed:false,
-                                                 desc: me.assertArgs.desc,
-                                                 err: u.format("Failure trying to log a failed test: {0}",tryerr.toString())});
-                    }
-                    // TODO: promise.resolve() here ensures that the next test runs even if this
-                    // one fails. This should be configurable somehow most likely
-                    finally {
-                        me.promise.resolve();
-                    }
-                });
-
-            };
-
-            return new DTest(args);
-        },
-        run: function () {
+        // create a callback that the next assert will wait for, optionally expiring.
+        callback: function(target,timeout) {
             var me=this,
                 defer = when.defer();
-            
-            // chain the last test's resolver 
-            me.lastPromise.then(function() {
-                me.passed = (me.count===me.countPassed);
-                u.event(me.group.testEnd,me.group,me);
-                defer.resolve(me);
-            });
-               
-            u.event(me.group.testStart,me.group,me);
-            me.domino();
-            return defer;
-        }
-    };
-
-
-    Assert = function (test) {
-        this.test = test;
-    };
-    Assert.prototype={
-        constructor: Assert,
-        then: function() {
-            return this.test.then.apply(this.test,u.toArray(arguments));
-        },
-        //TODO: add timeout
-        callback: function(target,seconds) {
-            var me=this,
-                defer = when.defer();
-            me.promise =  when_timeout(defer, seconds ? seconds * 1000 : 10000);
+            me.cbPromise =  when_timeout(defer, timeout ? timeout * 1000 : 10000);
             
             return function() {
                 var value = !target ? 
                     true:
                     target.apply(me,u.toArray(arguments));
                 defer.resolve(value);
-
             };
-
-
         },
-        defer: function () {
-            return this.test.defer.apply(this.test, u.toArray(arguments));
-        },
-        cback: function(func,callback) {
-            return this.test.cback.call(this.test,func,callback);
-        }
+        // return a promise from a function that has a callback parameter
+        backpromise: function(func,callback,timeout) {
+            var inner=when.defer(),
+                me=this,
+                p = when_timeout(inner, timeout ? timeout * 1000 : 10000),
+                cb=function() {
+                    p.resolve(callback.apply(this,u.toArray(arguments)));
+                };
+
+            func.call(me,cb);
+            return p;
+        }      
     };
 
+    // Map each method of "impl" to a public method that wraps it and calls runTest
 
-    // Map each method of "impl" to a public wrapper that calls runTest
     u.each(Test.prototype.impl, function (i, e) {
-        Assert.prototype[i] = function (args) {
-            return this.test.runTestNow(i,u.toArray(arguments));
+        Test.prototype[i] = function (args) {
+            return this.runTestNow(i,u.toArray(arguments));
         };
     });
 
-
     pubApi={
-        item: function (opts) {
-            return new Test(opts);
-        },
         test: function () {
             // TODO: chaining - this will be called from 
             var group = new TestGroup(this);
             return group.test.apply(group,u.toArray(arguments));
-        },
-       
-        impl: {
-            apiroot: api,
-            TestGroup: TestGroup,
-            Test: Test,
-            Assert: Assert,
-            utility: u,
-            groupDefaults: groupDefaults
         }
     };
     u.extend(api,pubApi);
+    pubApi.impl= {
+        apiroot: api,
+        TestGroup: TestGroup,
+        Test: Test,
+        Assert: Assert,
+        utility: u
+    };
     return pubApi;
 } (window));
