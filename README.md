@@ -4,7 +4,7 @@ A promise-aware testing framework for Javascript
 
 3/12/2012: version 0.1
 
-### What is this? 
+
 ###### Why would you make YATF (Yet Another Testing Framework)?
 
 iqtest is a unit testing framework that leverages promises to make your life much easier. A promise is something that supports the [CommonJS](http://www.commonjs.org/ "CommonJS") [Promise/A](http://wiki.commonjs.org/wiki/Promises/A) api. 
@@ -15,7 +15,7 @@ Some more recent works have improved matters, e.g. [Mocha](http://visionmedia.gi
 
 As much as I just want a framework that uses common, simple functions like `areEqual` instead of a whole new language, though, I could have forgiven that if it allowed me to write concise tests.
 
-#### Mocha - chocolate covered tests
+###### Mocha - chocolate covered tests
 
 This is how you write an async callback test in Mocha, given a function `getAsync(opts,callback)`:
 
@@ -34,7 +34,7 @@ In order to be readable on one line, you can't be creating inline closures:
 
 It doesn't really fit on one line, and I had to break it at an awkward place to keep it to only two lines. Even something this simple is largely incomprehensible without indenting. And I am not sure what would happen if `wait` failed and in never resolved, either.
 
-#### A promise to keep it simple
+###### A promise to keep it simple
 
 The promise api addresses the whole callback issue with the *promise* object which encapsulates the state of completion. Using promises and a testing framework that is aware of them makes this possible. 
 
@@ -64,7 +64,7 @@ The best way to see how it works is just fire up `iqtest-runner.html` in your br
 Source repository: [https://github.com/jamietre/iqtest](https://github.com/jamietre/iqtest)
 
 
-### Overview
+###### Overview
 
 
 This is all so new, but here's an example. Assume a function called "wait" that returns a promise. 
@@ -75,7 +75,7 @@ An example. This is similar to what's in the example here, some tests are design
 		.writer($('#output'))
 		.test("Test 1",function(a) {
 		
-			a..isTrue(true,"A true value is true")
+			a.isTrue(true,"A true value is true")
 				.then(function() {
 					a.areEqual(3,3,"Should fail 3=3");
 				}); 
@@ -132,17 +132,19 @@ An example. This is similar to what's in the example here, some tests are design
 			
 		})
 
-### Chaining
+###### Chaining
 
-The parameter `a` is an `Assert` object and is where you will call your assertions. This is passed to each test to permit concurrency. If we just created global methods for the assertions, they could not be tied to a particular test, and we could only run one at a time.
+The parameter `a` is the `Test` object, and is where you will call your assertions. It's synonymous with `this` but just lets you easily create a short alias for writing assertions. 
+
+This is passed to each test to permit concurrency. If we just created global methods for the assertions, they could not be tied to a particular test, and we could only run one at a time.
 
 You can write chained code to minimize the number of types you will type `a` as shown above. Every assert returns the assert object.
 
-The `Assert` object also implements the promise API, `then`. You can use this to explicitly bind code other than asserts to an event.
+The `Test` object also implements the promise API, `then`. You can use this to explicitly bind code other than asserts to an event.
 
-Every assert is automatically chained to the one before it, whether or not you use the chaining method. It's functionally identical to chain or not chain when calling a method on a single `Assert` object. However, things can still run out of order because of asynchronicity....
+Every assert is automatically chained to the one before it, whether or not you use the chaining method. It's functionally identical to chain or not chain when calling a method on a single `Test` object. However, things can still run out of order because of asynchronicity....
 
-### Caveats
+###### Caveats
 
 There is definitely some trickery needed to make all this possible. This can have unintended consequences if you don't understand how it works. While the goal is to hide the innard of the async processing as much as possible, there are some things that may trip you up. For example:
 
@@ -182,8 +184,9 @@ Remember, chaining happens automatically. This code is the same:
 	a.areEqual(0,x,"x is zero");
 	a.then(function() {
 		x=2;
+		a.areEqual(2,x,"x is 2"); // 3rd assert: passes
 	});
-	a.areEqual(2,x,"x is 2"); // 3rd assert: passes
+	
 
 Cool eh?
 
@@ -231,10 +234,6 @@ an `Assert` object, this is passed to the test function as the only parameter
 		.then
 
 chain an assert or promise, exposed by `assert.then`
-
-		.		
-
-    Assert
 
 		.backpromise(function(callback),callbackFunction,timeout)
 

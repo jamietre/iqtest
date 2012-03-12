@@ -371,7 +371,7 @@ var iqtest = (function (api) {
                 };
 
             function doThen(callback,errback) {
-                me.promise.then(callback, errback || errFunc);
+                me.promise = me.promise.then(callback, errback || errFunc);
             }
 
             doThen(callback,errback);

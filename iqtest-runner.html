@@ -97,8 +97,20 @@
 				});
 				// then try a callback
 			})
-			.test("Small Test (#2)",function() {
-				this.areEqual(5,wait(5),"A five second wait to show concurrent testing");
+			.test("Small Test (#2)",function(a) {
+				var x=0;
+
+				a.areEqual(2,wait(2),"A two second wait to show concurrent testing");
+			    a.areEqual(3,wait(3),"Wait returns the parameter it was passed after a time");
+				a.areEqual(0,x,"x is zero");
+				
+				a.then(function() {
+					x=2;
+					a.areEqual(2,x,"x is 2"); // 3rd assert: passes
+
+				});
+
+
 			});
 		});
 
