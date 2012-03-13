@@ -3,18 +3,23 @@
 
 <head>
 	<title>IQTest Javascript Testing Framework Test Runner</title>
-	<script type="text/javascript" src="jquery-1.7.1.js" /></script>
-	<script type="text/javascript" src="when.js" /></script>
-	<script type="text/javascript" src="timeout.js" /></script>
-	<script type="text/javascript" src="iqtest.js" /></script>
-	<script type="text/javascript" src="iqtest-html-harness.js" /></script>
+	<script type="text/javascript" src="redist/jquery-1.7.1.js" /></script>
+	<script type="text/javascript" src="redist/when.js" /></script>
+	<script type="text/javascript" src="redist/timeout.js" /></script>
+	<script type="text/javascript" src="redist/buster-core.js" /></script>
+	<script type="text/javascript" src="redist/buster-eventEmitter.js" /></script>
+	<script type="text/javascript" src="redist/buster-assertions.js" /></script>
 
+	<script type="text/javascript" src="iqtest.js" /></script>
+	<script type="text/javascript" src="iqtest.assertions.js" /></script>
+
+	<script type="text/javascript" src="iqtest-html-harness.js" /></script>
 </head>
 
 <body>
 <script type="text/javascript">
 	/*jslint onevar: false */
-	/*global when, iqtest */
+	/*global when, iqtest */ 
 
 	var glob;
 
@@ -36,15 +41,31 @@
 		var group = iqtest.writer($('#wrap'));
 
 		$('#startTest').bind('click',function(e) {
-			group
-			.configure({name: "Sample IQ Test Group"})
-			.test("Large Test (#1)",function(a) {
+			group.run();
+		});
+
+
+
+		group.configure({
+				name: "Sample IQ Test Group",
+				timeoutSeconds: 5
+
+			})
+			.test("Large Test (#1)",function(a,r) {
+
+				a.equals(1,1,"a test");
+				this.assert(true);
+				r.truthy(true,"False isn't true!!");
+
+				a.equals(1,1,"refute 1=1");
+			})
+			.test("Large Test (#1)",function(a,r) {
 
 				glob=0;
-				a.areEqual(0,glob,"global value is 0")
-					.isTrue(true,"should pass")
+				a.equals(0,glob,"global value is 0")
+					.truthy(true,"should pass")
 					.then(function() {
-						a.areEqual(3,3,"Numbers are equal (#1)");
+						a.equals(3,3,"Numbers are equal (#1)");
 					}); 
 
 				// uncomment to test testing error
@@ -53,16 +74,17 @@
 
 				// uncomment to test timeout error
 				//a.resolves(wait(12),"Just waiting to resolve")
-				a.resolves(wait(2),"Just waiting to resolve")
-					.areEqual(2,wait(2),"Waited 2 secs and returned the parameter")
-					.isTrue(waitcb(3,a.callback()),"Waited 3 secs");
+				this.assert(wait(2),"Just waiting to resolve")
+					.equals(2,wait(2),"Waited 2 secs and returned the parameter");
+					
+				a.truthy(waitcb(3,a.callback()),"Waited 3 secs");
 
 				var cb = a.callback(function() {
 					// uncomment to test testing error
 					//throw("callback err");
 					return 123;
 				});
-				a.areEqual(123,waitcb(3,cb),"Hoping to get 123");
+				a.equals(123,waitcb(3,cb),"Hoping to get 123");
 
 				var backprom = a.backpromise(function(cb) {
 					// uncomment to test testing error
@@ -74,19 +96,19 @@
 					return "xxx";
 				});
 			
-				a.areEqual('xxx',backprom,"Hoping to get 'xxx'")
+				a.equals('xxx',backprom,"Hoping to get 'xxx'")
 
 				.then(function() {
 					a.isFalse(y,"y is false");
-					a.areEqual(10,glob,"global got set by wait");	
+					a.equals(10,glob,"global got set by wait");	
 					y=true;
 				}).then(function()
 				{
-					a.areEqual(true,y,"y is now true");
+					a.equals(true,y,"y is now true");
 
 				});
 
-				a.areEqual(1,1,"Numbers are equal")
+				a.equals(1,1,"Numbers are equal")
 				.then(function()
 				{
 					throw("An error!");
@@ -100,13 +122,13 @@
 			.test("Small Test (#2)",function(a) {
 				var x=0;
 
-				a.areEqual(2,wait(2),"A two second wait to show concurrent testing");
-			    a.areEqual(3,wait(3),"Wait returns the parameter it was passed after a time");
-				a.areEqual(0,x,"x is zero");
+				a.equals(2,wait(2),"A two second wait to show concurrent testing");
+			    a.equals(3,wait(3),"Wait returns the parameter it was passed after a time");
+				a.equals(0,x,"x is zero");
 				
 				a.then(function() {
 					x=2;
-					a.areEqual(2,x,"x is 2"); // 3rd assert: passes
+					a.equals(2,x,"x is 2"); // 3rd assert: passes
 
 				});
 
@@ -115,7 +137,6 @@
 		});
 
 
-	});
 </script>
 	<p>
 <b>Test Test Page</b> <a href="#" id="startTest">Run Tests</a>

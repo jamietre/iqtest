@@ -11,7 +11,6 @@
 
 (function(iqtest) {
 	var u = iqtest.impl.utility, 
-		oldRun,
 		tpl = {
 			group:'<pre><h1>Starting test group "<iq-name></iq-name>": <iq-groupresult></iq-groupresult></h1>'+
 				'<div><div></div></div></pre>',
@@ -27,7 +26,6 @@
 	
 	iqtest.templates=tpl;
 
-	oldRun = iqtest.impl.TestGroup.prototype.run;
 
 	u.tmpReplace=function(el,obj){
 		u.each(obj,function(i,e) {
@@ -46,17 +44,6 @@
 		return u.tmpReplace($(tmpl),{resulttext: passed ? "Passed":"Failed"});
 
 	}
-	iqtest.impl.TestGroup.prototype.run = function() {
-			var wrap = $('#wrap');
-			wrap.empty();
-			oldRun.call(this).then(function(t) {
-				u.newChain(
-					function() {  
-						t.group.render(wrap);       
-					}
-				);
-			});
-	};
 	u.extend(iqtest.impl.TestGroup.prototype,
 	{
 		writer: function(el) {
@@ -140,6 +127,5 @@
          group.writer(el);
          return group;
     };
-    iqtest.impl.apiroot.writer=iqtest.writer;
 }(iqtest));
 
