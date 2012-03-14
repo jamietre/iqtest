@@ -16,12 +16,12 @@
 	<script type="text/javascript" src="iqtest-html-harness.js" /></script>
 </head>
 
-<body>
-<script type="text/javascript">
+<body> 
+<script type="text/javascript"> 
 	/*jslint onevar: false */
 	/*global when, iqtest */ 
 
-	var glob;
+	var glob; 
 
 	// returns a promise 
 	var wait = function(secs) {
@@ -43,8 +43,6 @@
 		$('#startTest').bind('click',function(e) {
 			group.run();
 		});
-
-
 
 		group.configure({
 				name: "Sample IQ Test Group",
@@ -83,7 +81,7 @@
 				var cb = a.callback(function() {
 					// uncomment to test testing error
 					//throw("callback err");
-					return 123;
+					return 123; 
 				});
 				a.equals(123,waitcb(3,cb),"Hoping to get 123");
 
@@ -103,36 +101,38 @@
 					a.isFalse(y,"y is false");
 					a.equals(10,glob,"global got set by wait");	
 					y=true;
-				}).then(function()
-				{
-					a.equals(true,y,"y is now true");
+				// }).then(function()
+				// {
+				//	a.equals(true,y,"y is now true");
 
 				});
 
 				a.equals(1,1,"Numbers are equal");
+				
+
+
 				// .then(function()
 				// {
-				// 	throw("An error!");
+				//throw("An error!");
 
 				// }).then(function()
 				// {
-				// 	throw("Never get here!");
+				//	throw("Never get here!");
 				// });
 				// then try a callback
-			// })
-			// .test("Small Test (#3), about 4",function(a) {
-			// 	var x=0;
+			 });
+			group.test("Small Test (#3), about 4",function(a) {
+				var x=0;
 
-			// 	a.equals(2,wait(2),"A two second wait to show concurrent testing");
-			//     a.equals(3,wait(3),"Wait returns the parameter it was passed after a time");
-			// 	a.equals(0,x,"x is zero");
+				a.equals(2,wait(2),"A two second wait to show concurrent testing");
+			    a.equals(3,wait(3),"Wait returns the parameter it was passed after a time");
+				a.equals(0,x,"x is zero");
 				
-			// 	a.then(function() {
-			// 		x=2;
-			// 		a.equals(2,x,"x is 2"); // 3rd assert: passes
+				a.then(function() {
+					x=2;
+					a.equals(2,x,"x is 2"); // 3rd assert: passes
 
-			//	});
- 
+				});
 
 			});
 		});

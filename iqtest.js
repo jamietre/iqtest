@@ -135,7 +135,7 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
 
             u.each(["backpromise","callback","then"],function(i,method) {
                 asserts[method]=function() {
-                    return this.test[method].apply(this.testObject,u.toArray(arguments));
+                    return this.test[method].apply(this.test,u.toArray(arguments));
                 };
             });
 
@@ -713,9 +713,8 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
             // if no timeout is specified, the actual function is arleady wrapped by a timeout so not needed
             me.cbPromise=t ? 
                  when_timeout(defer, t * 1000) :
-                 defer.promise;
+                 defer;
             
-
             return function() {
                 var value;
                 if (!target) {
