@@ -11,11 +11,11 @@ iqtest is a unit testing framework that leverages promises to make your life muc
 
 Unit testing Javascript is historically a big pain because of the lack of adequate language features to write concise event-handling code.
 
-Some more recent works have improved matters, e.g. [Mocha](http://visionmedia.github.com/mocha/ "Mocha"). From the outset, though, I never got into Jasmine or Mocha because I didn't want to learn a new language. I know that creating Javascript constructs that resemble human communication is all the rage. Personally, I value conciseness and the adoption of common pardigms, to verbosity and the necessity to learn a new set of verbs for every tool I use. No offense if you like MacchianoAmericanoScript and stuff. I just like to speak to my computer in the most direct and least ambiguous way possible.
+Some more recent works have improved matters, e.g. [Mocha](http://visionmedia.github.com/mocha/ "Mocha"). From the outset, though, I never got into Jasmine or Mocha because I didn't want to learn a new language. Despite the popularity of common-language Javascript constructs, I've found that having to learn a whole new dialect for an application creates more barriers to use than the dialect itself solves. But I would have been willing to do that if that dialect was going to result in concise, expressive code. 
 
-As much as I just want a framework that uses common, simple functions like `areEqual` instead of a whole new language, though, I could have forgiven that if it allowed me to write concise tests.
+So how can we create async tests with Mocha?
 
-###### Mocha - chocolate covered tests
+###### Mocha tests
 
 This is how you write an async callback test in Mocha, given a function `getAsync(opts,callback)`:
 
@@ -52,12 +52,21 @@ If you aren't using promises in your javascript code, start now. You can still u
 
 \* This works by magic. It really doesn't matter what getAsyncData returns.
 
+To be fair we look at using promises in Mocha:
+
+    it('should respond with the correct value', function(done){
+      getAsyncData(opts).then(function() {
+         response.should.equal('correct');
+         done();
+      });
+
+About the same. The real value of promises is chaining multiple callbacks, so they would help you more for complex test. But we can't really leverage the promise API in a test unless the testing framework knows to do something with it.
+
 #### Using it
 
+The framework itself does not require anything other than when.js and timeout.js from [https://github.com/cujojs/when](https://github.com/cujojs/when).
 
-The framework itself does not require anything other than when.js and timeout.js from [https://github.com/cujojs/when](https://github.com/cujojs/when)
-
-The example uses a test harness for web browsers that requires jquery. You can run this without jQuery and create your own analysis tool for its output.
+The example uses a test harness for web browsers that requires jquery. *iqtest itself does not depend on jQuery*. You can run this without jQuery and create your own analysis tool for its output if you like, following the model of the test harness I have provided.
 
 The best way to see how it works is just fire up `iqtest-runner.html` in your browser.
 
@@ -238,6 +247,10 @@ chain an assert or promise, exposed by `assert.then`
 		.backpromise(function(callback),callbackFunction,timeout)
 
 return a promise made from a callback-enabled function. if no timeout is set, defaults to 10 seconds.
+
+        .callback(function)
+
+create a callback that can be used as a callback target in an assert. If no function is passed, it returns true on success. If a function is provided, its return value is evaluated in the assert.
 
 Create 
 
