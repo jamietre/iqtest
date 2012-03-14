@@ -48,18 +48,19 @@
 
 		group.configure({
 				name: "Sample IQ Test Group",
-				timeoutSeconds: 5
+				timeoutSeconds: 5,
+				showPassed: true
 
-			})
-			.test("Large Test (#1)",function(a,r) {
-
+			});
+			group.test("Small Test (#1), about 4 total",function(a,r) {
 				a.equals(1,1,"a test");
 				this.assert(true);
 				r.truthy(true,"False isn't true!!");
 
 				a.equals(1,1,"refute 1=1");
-			})
-			.test("Large Test (#1)",function(a,r) {
+			});
+			// return;
+			group.test("Large Test (#2), about 13",function(a,r) {
 
 				glob=0;
 				a.equals(0,glob,"global value is 0")
@@ -108,30 +109,30 @@
 
 				});
 
-				a.equals(1,1,"Numbers are equal")
-				.then(function()
-				{
-					throw("An error!");
+				a.equals(1,1,"Numbers are equal");
+				// .then(function()
+				// {
+				// 	throw("An error!");
 
-				}).then(function()
-				{
-					throw("Never get here!");
-				});
+				// }).then(function()
+				// {
+				// 	throw("Never get here!");
+				// });
 				// then try a callback
-			})
-			.test("Small Test (#2)",function(a) {
-				var x=0;
+			// })
+			// .test("Small Test (#3), about 4",function(a) {
+			// 	var x=0;
 
-				a.equals(2,wait(2),"A two second wait to show concurrent testing");
-			    a.equals(3,wait(3),"Wait returns the parameter it was passed after a time");
-				a.equals(0,x,"x is zero");
+			// 	a.equals(2,wait(2),"A two second wait to show concurrent testing");
+			//     a.equals(3,wait(3),"Wait returns the parameter it was passed after a time");
+			// 	a.equals(0,x,"x is zero");
 				
-				a.then(function() {
-					x=2;
-					a.equals(2,x,"x is 2"); // 3rd assert: passes
+			// 	a.then(function() {
+			// 		x=2;
+			// 		a.equals(2,x,"x is 2"); // 3rd assert: passes
 
-				});
-
+			//	});
+ 
 
 			});
 		});
