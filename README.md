@@ -34,6 +34,12 @@ In order to be readable on one line, you can't be creating inline closures:
 
 It doesn't really fit on one line, and I had to break it at an awkward place to keep it to only two lines. Even something this simple is largely incomprehensible without indenting. And I am not sure what would happen if `wait` failed and in never resolved, either.
 
+###### Buster
+
+Along came <a href="http://busterjs.org/">Buster.JS</a> which provides a robust javascript testing framework that is much more consistent with my old-school ideas about what an assertion should look like (e.g., one line). It has some cool features but it still did not appear to be natively test-aware. It also suffers from the "this will be a baffling ordeal to use if you don't use node.js" syndrome that some interesting Javascript works these days do. Since I write javascript that primarily runs in web browsers, that made it not directly suitable. 
+
+But I found the code and the assertion libraries to be beautiful so I adopted them for this framework. You can drop in "buster-assertions.js" and iqtest will detect and use them. I also learned just enough about CommonJS and Node.js to be dangerous. It is possible this will work with Node, and there's no browser code in the library itself (just in the output handler). If it doesn't work as-is it should be trivial to fix it.
+
 ###### A promise to keep it simple
 
 The promise api addresses the whole callback issue with the *promise* object which encapsulates the state of completion. Using promises and a testing framework that is aware of them makes this possible. 
@@ -42,7 +48,7 @@ We want to assert that *getAsyncData(opts) responds with the value 'correct'*. Y
 
 iqtest rewrites this test, assuming that our getAsyncData function also returns a promise:
 
-	a.areEqual('correct',getAsyncData(opts),'should respond with the correct value');
+	a.equals('correct',getAsyncData(opts),'should respond with the correct value');
 
 It does exactly the same thing, but it eliminates two closures (e.g. two appearances of the word 'function') and removes all control flow logic from the test.  It also sets a timeout on the promise automatically so the test will fail if it never returns.
 
@@ -59,12 +65,15 @@ To be fair we look at using promises in Mocha:
          response.should.equal('correct');
          done();
       });
+    });
 
-About the same. The real value of promises is chaining multiple callbacks, so they would help you more for complex test. But we can't really leverage the promise API in a test unless the testing framework knows to do something with it.
+About the same, still too many closures and curly braces. And the real value of promises is chaining multiple callbacks, so they would help you more for complex test. But we can't really leverage the promise API cleanly in a test unless the testing framework knows to do something with it.
 
 #### Using it
 
 The framework itself does not require anything other than when.js and timeout.js from [https://github.com/cujojs/when](https://github.com/cujojs/when).
+
+It mostly uses assertions from busterjs.
 
 The example uses a test harness for web browsers that requires jquery. *iqtest itself does not depend on jQuery*. You can run this without jQuery and create your own analysis tool for its output if you like, following the model of the test harness I have provided.
 
@@ -82,19 +91,19 @@ An example. This is similar to what's in the example here, some tests are design
 
 	iqtest
 		.writer($('#output'))
-		.test("Test 1",function(a) {
+		.test("Test 1",function(assert) {
 		
-			a.isTrue(true,"A true value is true")
+			assert(true,"A true value is true")
 				.then(function() {
-					a.areEqual(3,3,"Should fail 3=3");
+					assert.equals(3,3,"Should fail 3=3");
 				}); 
 		
 			// the 'waitcb' function is a non-promise enabled 'wait'
 			// it's second parameter is a callback function. we can
             // let iqtest create one to use for us.
 
-			a.areEqual(2,wait(2),"Waited 2 secs")
-				.areEqual(3,waitcb(3,a.callback()),"Waited 3 secs")
+			assert.equals(2,wait(2),"Waited 2 secs")
+				.equals(3,waitcb(3,assert.callback()),"Waited 3 secs")
 				.pass('Got through two chained callbacks');
 
             // you can pass a function to it to process the response
@@ -104,7 +113,7 @@ An example. This is similar to what's in the example here, some tests are design
 			var cbHandler = function(response) {
 				return response*2;
 			};
-			a.areEqual(6,waitcb(3,a.callback(cbHandler)),"Waited 3 secs and multiplied by 2")
+			assert.equals(6,waitcb(3,assert.callback(cbHandler)),"Waited 3 secs and multiplied by 2")
 
 			// you can also create a promise to wrap the callback function
 			// 'promise' is a member of the iqtest object. iqtest maps
@@ -124,20 +133,20 @@ An example. This is similar to what's in the example here, some tests are design
 	
 			// now use p just like any promise-returning function		
 			
-			a.areEqual(124,p,"Hoping to get 'xxx'");
+			assert.equals(124,p,"Hoping to get 'xxx'");
 		
 			// use then to explicity wrap code that needs to run inline
             // other than asserts (see "Caveats" below)
 
-			a.then(function() {
-				a.isFalse(y,"y is false");
-				a.areEqual(10,glob,"global got set by wait");	
+			assert.then(function() {
+				assert.isFalse(y,"y is false");
+				assert.equals(10,glob,"global got set by wait");	
 				y=true;
 			})
 			.then(function() {
-				a.areEqual(true,y,"y is now true");
+				assert.equals(true,y,"y is now true");
 			})
-			.areEqual(1,1,"Numbers are equal");
+			.equals(1,1,"Numbers are equal");
 			
 		})
 
@@ -159,12 +168,12 @@ There is definitely some trickery needed to make all this possible. This can hav
 
     var x=0;
 
-    a.areEqual(3,wait(3),"Wait returns the parameter it was passed after a time")  // 1st assert: passes
-		.areEqual(0,x,"x is zero");   // 2nd assert: fails!!
+    assert.equals(3,wait(3),"Wait returns the parameter it was passed after a time")  // 1st assert: passes
+		.equals(0,x,"x is zero");   // 2nd assert: fails!!
 
     x=2;
 
-	a.areEqual(2,x,"x is 2"); // 3rd assert: passes
+	assert.equals(2,x,"x is 2"); // 3rd assert: passes
 
 The first assert starts an async callback. The 2nd assert is `bound to the resolution of the first assert`. By design, and logcally, it will not run until the callback finishes 3 seconds later.
 
@@ -173,19 +182,6 @@ But while things are tied up at city hall for the first two asserts, the code co
 So by the time assert #2 runs, x is quite definitely not equal to zero any more. Assert #3 resolves true, of course.
 
 To avoid this, just assume that everything that is *not an assert* gets run immediately. Because it pretty much does. it's much the same concept as variable hoisting. There's nothing wrong with mixing setup code in with the asserts, but if you are going to write code that depends on something *which can change later in the test* you need to wrap it explicitly. Here's the "corrected" version of this test:
-
-    var x=0;
-
-    a.areEqual(3,wait(3),"Wait returns the parameter it was passed after a time")
-		.areEqual(0,x,"x is zero");
-		.then(function() {
-			x=2;
-		});
-		.areEqual(2,x,"x is 2"); // 3rd assert: passes
-
-
-Remember, chaining happens automatically. This code is the same:
-
 
     var x=0;
 
@@ -200,7 +196,6 @@ Remember, chaining happens automatically. This code is the same:
 Cool eh?
 
 ### Reference
-
 
 
     iqtest     
