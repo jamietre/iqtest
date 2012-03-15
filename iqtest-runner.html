@@ -56,8 +56,13 @@
 				r.truthy(true,"False isn't true!!");
 
 				a.equals(1,1,"refute 1=1");
+				// test failures
+				// a.contentsEqual(true,[1,2],"Simple arrays are the same");
+				// a.contentsEqual([1,2,3],[1,2],"Simple arrays are the same");
+				// a.contentsEqual([1,2,3,4],[1,2,9,4],"Simple arrays are the same");
+				a.contentsEqual({prop1: "prop1value", prop2: "prop2value"},{prop1: "prop1value", prop2: "prop2value-diff"},"Simple arrays are the same");
 			});
-			// return;
+			return;
 			group.test("Large Test (#2), about 13",function(a,r) {
 
 				glob=0;

@@ -82,7 +82,7 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
                 u.expectOpts(arguments,1);
                 return {
                     passed: !!obj,
-                    err: u.formatAssert('The object {0} is {not}truthy',obj,message)
+                    err: u.formatAssert(message,'The object {0} is {not}truthy',String(obj))
                 };
             }
         });
@@ -211,6 +211,14 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
         trim: function(str) {
             return str.replace(/^\s\s*/, '').replace(/\s\s*$/, '');
         },
+        //split with trim (why would you want it any other way?)
+        split: function(str,delim) {
+            var result=[];
+            u.each(str.split(str,delim),function(i,e) {
+                result.push(u.trim(e));
+            });
+            return result;
+        },
         // replaces {0}.. {n} with the ordinal valued parameter. You can also pass an 
         // array instead of multiple parameters
         format: function (text) {
@@ -269,8 +277,11 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
             }
         },
         // standardize the format of the output from assertions
-        formatAssert: function(text,obj,message) {
-            return (message? message+': ':'')+u.format(text,String(obj)).replace('{not}','{0}');
+        formatAssert: function(message,text,parms) {
+            return !text ? '' :
+             (message ? message+': ':'')+ parms ?
+                u.format(text,u.isArray(parms) ? parms : u.toArray(arguments,2)) :
+                '';
         }
 
     };
@@ -512,7 +523,7 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
                     throw({
                         name: "AssertionError",
                         type: "iq",
-                        message: u.format(result.err,invert?'not':'')
+                        message: u.format(result.err.replace('{not}','{0}'),invert?'not ':'')
                     });
                 }
             },
