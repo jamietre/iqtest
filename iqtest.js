@@ -461,34 +461,36 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
             u.extend(allowedOpts,this,options,true);
             u.extend(this,allowedOpts);
         },
-
-        // these methods should not be used by the public
-        // TODO move them
-
         // queue a callback to attach to the next thing queued.
         then: function(callback,errback) {
             var me=this,
-                errFunc=function(err) {
+                errFunc=errback || function(err) {
                     // failures of everything end up here - if we've already broken for a particular reason then 
                     // stop logging all the inevitable timeouts.
                     me.testerror(err,false);
-                };
+                },
+            deferred = when.defer(),
+            prev = me.promise;
+            me.promise = deferred.promise;
 
-            function doThen(callback,errback) {
-                me.promise = me.promise.then(callback, errback || errFunc);
-            }
-
-            doThen(callback,errback);
+            prev.then(function() {
+                callback();
+                deferred.resolve();
+            },function() {
+                deferred.reject();
+                errFunc();
+            });
             
-            if (me.afterNext.length>0) {
-                u.each(function(i,obj) {
-                    doThen(obj.callback,obj.errback);
-                });
-                me.afterNext=[];
-            }
+            // TODO
+            // if (me.afterNext.length>0) {
+            //     u.each(function(i,obj) {
+            //         me.promise.then(obj.callback,obj.errback);
+            //     });
+            //     me.afterNext=[];
+            // }
             return me;
         },
-        // call when a critical error should prevent further test execution,
+        //TODO
         afterNext: function(callback,errback) {
             this.nextThen.push({callback:callback, errback:errback});
         },
@@ -533,24 +535,16 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
         // queue a test that throws an error
         queueTest: function(module,assertion,args)
         {
-            // wrap literal values in the DTest object anyway - they will just be resolved
             var me=this, 
                 // internal methods are wrapped in tryTest - get their args as the 2nd arg in "args." Argh!
                 cbPos, 
                 methodArgs=assertionData[assertion.split('.')[1]].args,
                 hasMagicCallback,
-                defer=when.defer(),
-                pending=[];
+                deferred,next,
+                pending=[],
+                prev;
 
-            // show start indicator
-            me.promise.then(function() {
-                me.startTest({
-                    desc: assertMessage(assertion,args),
-                    assertion: assertion
-                });
-            },function(err) {
-                defer.reject(err);
-            });
+
 
             // check for the "magic" callback. If me.cbPromise exists, then it was hopefully created by the parameters
             // for this method. This is slightly brittle because there's no direct binding of the particular promise to 
@@ -559,6 +553,7 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
 
             if (me.cbPromise) {
                 hasMagicCallback=true;
+                deferred = deferred || when.defer();
 
                 if (methodArgs===1) {
                     cbPos=0;
@@ -577,7 +572,7 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
                 me.cbPromise.then(function(response) {
                     args[cbPos]=response;
                 },function(err) {
-                    defer.reject('The callback failed. ' + (err ? u.format('Reason: {0}',String(err)) :''));
+                    deferred.reject('The callback failed. ' + (err ? u.format('Reason: {0}',String(err)) :''));
                 });
                 pending.push(me.cbPromise);
                 me.cbPromise=null;
@@ -588,8 +583,10 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
 
                 // wait for any promises
                 if (when.isPromise(arg)) {
+                    deferred = deferred || when.defer();
+
                     if (i===0 && hasMagicCallback) {
-                        defer.reject("You're using magic callback but you've also defined a promise as the first argument of your assert.");
+                        deferred.reject("You're using magic callback but you've also defined a promise as the first argument of your assert.");
                     }
                     arg.then(function(response)
                     {
@@ -600,26 +597,49 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
 
             });
 
-            if (pending.length) {
-                pending.push(me.promise);
-                me.promise = when.all(pending);
-            }
+            // notify event handlers
+            // do not replace current promise - this should not be blocking
 
-            // link  each test to a new resolver so failures will break the chain at that point
-            // some tests don't have an "actual" part (e.g. pass,fail).  
 
-            me.then(function() {                
-                if (me.runTest.call(me,module,assertion,args)) {
-                    defer.resolve();
-                } else {
-                    defer.reject("The test failed.");
-                }
-            }, function(err) {
-                defer.reject(err);
+            me.then(function() {
+                me.startTest({
+                    desc: assertMessage(assertion,args),
+                    assertion: assertion
+                });
+
+
             });
 
-            me.promise = when_timeout(defer.promise, me.timeoutSeconds*1000);
-            me.resolver=defer.resolver;
+            // wait for everything async that's going on
+
+            if (pending.length) {
+                pending.push(me.promise);
+                // me.promise = when_timeout(
+                //     when.chain(when.all(pending),deferred),
+                //     me.timeoutSeconds*1000);
+                me.promise = deferred.promise;
+                when.chain(when.all(pending),deferred);
+                
+            } 
+
+
+            // link each test to a new resolver so failures will break the chain at that point
+            // some tests don't have an "actual" part (e.g. pass,fail).  
+
+            next = when.defer();
+            prev = me.promise;
+             me.promise = next.promise;
+            prev.then(function() {
+                    if (me.runTest.call(me,module,assertion,args)) {
+                         next.resolve();
+                    } else {
+                         next.reject("The test failed.");
+                    }
+                },function() {alert('error');});
+
+            
+            
+            //me.resolver=deferred.resolver;
             
             return me;
         },
