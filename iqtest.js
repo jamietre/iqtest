@@ -12,8 +12,8 @@ MIT License
 
 (function(define) {
 
-define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
-    var u, Test, TestGroup, Assert,
+define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, utils) {
+    var Test, TestGroup, Assert,
     // default values for TestGroup
     groupDefaults = {
         name: "Unnamed Test Group",   
@@ -320,6 +320,17 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
             test.id = me.tests.length;
             return me;
         },
+        add: function(test) {
+            var me=this;
+            if (test.constructor === TestGroup) {
+                u.each(test.tests,function(i,e) {
+                    me.tests.push(e);
+                });
+            } else if (test.constructor === Test) {
+                me.tests.push(test);
+            }
+            return me;
+        },
         run: function (name, desc, func) {
             var finishFunc,
                 me=this;
@@ -469,17 +480,21 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
                     // stop logging all the inevitable timeouts.
                     me.testerror(err,false);
                 },
-            deferred = when.defer(),
-            prev = me.promise;
-            me.promise = deferred.promise;
+                newPromise = when.defer(),
+                prev = me.promise;
 
-            prev.then(function() {
-                callback();
-                deferred.resolve();
-            },function() {
-                deferred.reject();
-                errFunc();
-            });
+            newPromise.then(callback,errFunc);
+            me.promise = newPromise;
+            prev.then(newPromise.resolve,newPromise.reject);
+            
+
+            // prev.then(function() {
+            //     callback();
+            //     deferred.resolve();
+            // },function() {
+            //     deferred.reject();
+            //     errFunc();
+            // });
             
             // TODO
             // if (me.afterNext.length>0) {
@@ -574,7 +589,7 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
                 },function(err) {
                     deferred.reject('The callback failed. ' + (err ? u.format('Reason: {0}',String(err)) :''));
                 });
-                pending.push(me.cbPromise);
+                //pending.push(me.cbPromise);
                 me.cbPromise=null;
             }
 
@@ -600,14 +615,11 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
             // notify event handlers
             // do not replace current promise - this should not be blocking
 
-
             me.then(function() {
                 me.startTest({
                     desc: assertMessage(assertion,args),
                     assertion: assertion
                 });
-
-
             });
 
             // wait for everything async that's going on
@@ -628,7 +640,7 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
 
             next = when.defer();
             prev = me.promise;
-             me.promise = next.promise;
+            me.promise = next.promise;
             prev.then(function() {
                     if (me.runTest.call(me,module,assertion,args)) {
                          next.resolve();
@@ -715,8 +727,8 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
                 }
                 catch(err2)
                 {
-
-                }
+                    //throw(err2);
+                }   
                 me.resolver=null;
             }
             if (me.stopped) {
@@ -739,12 +751,12 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
         callback: function(target,timeout) {
             var me=this,
                 t = timeout || me.timeoutSeconds,
-                defer = when.defer();
+                deferred = when.defer();
 
-            // if no timeout is specified, the actual function is arleady wrapped by a timeout so not needed
-            me.cbPromise=t ? 
-                 when_timeout(defer, t * 1000) :
-                 defer;
+            // if no timeout is specified, the actual function is already wrapped by a timeout so not needed
+            me.cbPromise = t ? 
+                 when_timeout(deferred, t * 1000) :
+                 deferred;
             
             return function() {
                 var value;
@@ -761,12 +773,12 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
                         catch(err)
                         {
                             me.testerror("An error occurred in your callback(): "+err,true);
-                            defer.reject(value);
+                            deferred.reject(value);
                             return;
                         }
                     }
                 }
-                defer.resolve(value);
+                deferred.resolve(value);
             };
         },
         // return a promise from a function that has a callback parameter
@@ -821,6 +833,10 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
 
 
     return {
+        configure: function(options) {
+            var group = new TestGroup(options);
+            return group;
+        },
         test: function () {
             // TODO: chaining - this will be called from 
             var group = new TestGroup(this);
@@ -843,12 +859,14 @@ define(['./iqtest'], function(when,when_timeout, iq_asserts, buster_asserts) {
         if (typeof module !== 'undefined') {
             module.exports = factory(require('./when'),
                 require('./timeout'),
-                require('./buster-assertions'));
+                require('./buster-assertions'),
+                require('./trewtech.utils')
+                );
         } else {
             if (!this.iqtest_assertions) {
                 this.iqtest_assertions=[];
             } 
-            this.iqtest = factory(this.when,this.when_timeout,this.iqtest_assertions, 
+            this.iqtest = factory(this.common.utils,this.when,this.when_timeout,this.iqtest_assertions, 
                 this.buster ? this.buster.assert : null);
         }
     }
