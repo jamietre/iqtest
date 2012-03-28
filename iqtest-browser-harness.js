@@ -15,8 +15,8 @@
 			group:'<pre><h1>Starting test group "<iq-name></iq-name>": <iq-groupresult></iq-groupresult></h1>'+
 				'<div><div></div></div></pre>',
 			testStart: '<h2>Starting test "<iq-name></iq-name>": <iq-testresult></iq-testresult></h2><div></div>',
-			testEnd: '<h3><iq-count></iq-count> test items finished.</h3>',
-			itemStart: '<span style="color: blue;font-style: italic;">Running test #<iq-count></iq-count>: '
+			testEnd: '<h3><iq-count></iq-count> assertions passed.</h3>',
+			itemStart: '<span style="color: blue;font-style: italic;">#<iq-count></iq-count>: '
 					+'<iq-assertion></iq-assertion> "<iq-desc></iq-desc>"....</span><br/>',
 			itemEnd: '<span><iq-fulltext></iq-fulltext></span><br/>',
 			resultSuccess: '<span style="color:green"><iq-resulttext></iq-resulttext></span>',

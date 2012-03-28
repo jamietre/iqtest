@@ -365,11 +365,14 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 test._lastPromise=test.promise;
                 test._allPass=true;
 
-                finishFunc=function()
-                {
+                finishFunc=function(test) {
                     if (test.promise!==test._lastPromise) {
                         test._lastPromise=test.promise;
-                        test._lastPromise.then(finishFunc,finishFunc);
+                        test._lastPromise.then(function() {
+                            finishFunc(test);
+                        },function() {
+                            finishFunc(test);
+                        });
                         return;
                     }
                     if (!u.isBool(test.passed)) {
@@ -386,7 +389,11 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                         u.event(me.groupEnd,me,u.filter(test,"passed"));
                     }
                 };
-                test.promise.then(finishFunc,finishFunc);
+                test.promise.then(function() {
+                    finishFunc(test);
+                },function() {
+                    finishFunc(test);
+                });
             });
         },
         then: function(name,func) {
@@ -473,20 +480,26 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             u.extend(this,allowedOpts);
         },
         // queue a callback to attach to the next thing queued.
-        then: function(callback,errback) {
-            var me=this,
-                errFunc=errback || function(err) {
+        then: function(callback,errFunc) {
+            var me=this,       
+                errback=errFunc || function(err) {
                     // failures of everything end up here - if we've already broken for a particular reason then 
                     // stop logging all the inevitable timeouts.
                     me.testerror(err,false);
                 },
-                newPromise = when.defer(),
-                prev = me.promise;
+                oldPromise = me.promise,
+                newPromise = when.defer();
+            //     ,
+            //     newPromise = when.defer(),
+            //     prev = me.promise;
 
-            newPromise.then(callback,errFunc);
-            me.promise = newPromise;
-            prev.then(newPromise.resolve,newPromise.reject);
+            // newPromise.then(callback,errFunc);
+            // me.promise = newPromise;
+            // prev.then(newPromise.resolve,newPromise.reject);
             
+            newPromise.then(callback,errback);
+            me.promise = newPromise;
+            when.chain(oldPromise,newPromise);           
 
             // prev.then(function() {
             //     callback();
@@ -559,7 +572,9 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 pending=[],
                 prev;
 
-
+            if (me.stopped) {
+                return me;
+            }
 
             // check for the "magic" callback. If me.cbPromise exists, then it was hopefully created by the parameters
             // for this method. This is slightly brittle because there's no direct binding of the particular promise to 
@@ -577,7 +592,6 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 } else if (args[1] && !args[0]) {
                     cbPos=0;
                 } else {
-
                     me.testerror(u.format('I couldn\'t figure out what to do with your magic callback. ' 
                         + 'For this test you may need to define it explicitly.'
                         + '[{0}] {1}',assertion,assertMessage(args)));
@@ -589,7 +603,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 },function(err) {
                     deferred.reject('The callback failed. ' + (err ? u.format('Reason: {0}',String(err)) :''));
                 });
-                //pending.push(me.cbPromise);
+                pending.push(me.cbPromise);
                 me.cbPromise=null;
             }
 
@@ -616,6 +630,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             // do not replace current promise - this should not be blocking
 
             me.then(function() {
+
                 me.startTest({
                     desc: assertMessage(assertion,args),
                     assertion: assertion
@@ -641,15 +656,18 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             next = when.defer();
             prev = me.promise;
             me.promise = next.promise;
-            prev.then(function() {
-                    if (me.runTest.call(me,module,assertion,args)) {
-                         next.resolve();
-                    } else {
-                         next.reject("The test failed.");
-                    }
-                },function() {alert('error');});
+            prev.then(function resolve(value) {
+                // check if a value was passed - it is likely the cb parm
+                if (me.runTest.call(me,module,assertion,args)) {
+                     next.resolve();
+                } else {
+                     next.reject("The test failed");
+                }
+            },function reject(err) {
+                next.reject(err);
+            });
 
-            
+
             
             //me.resolver=deferred.resolver;
             
@@ -718,19 +736,19 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
         },
         
         // when the debugging parm is true, will enable debugging for the group
-        testerror: function(err, debugging) {
+        testerror: function(err, debug) {
             var me=this;
-            if (me.resolver) {
-                // TODO there must be a better way..
-                try {
-                    me.resolver.reject(err);
-                }
-                catch(err2)
-                {
-                    //throw(err2);
-                }   
-                me.resolver=null;
-            }
+            // if (me.resolver) {
+            //     // TODO there must be a better way..
+            //     try {
+            //         me.resolver.reject(err);
+            //     }
+            //     catch(err2)
+            //     {
+            //         //throw(err2);
+            //     }   
+            //     me.resolver=null;
+            // }
             if (me.stopped) {
                 return;
             }
@@ -739,9 +757,9 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             
             u.event(me.log,me.group,
                 u.format('{0}. {1}',String(err),
-                    debugging ? 'Debugging is enabled if you start again.' : '' ));
+                    debug ? 'Debugging is enabled if you start again.' : '' ));
 
-            if (debugging) {
+            if (debug) {
                 me.debug=true;
             }
             
@@ -754,10 +772,12 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 deferred = when.defer();
 
             // if no timeout is specified, the actual function is already wrapped by a timeout so not needed
-            me.cbPromise = t ? 
+
+            me.cbPromise= 
+                t ? 
                  when_timeout(deferred, t * 1000) :
                  deferred;
-            
+
             return function() {
                 var value;
                 if (!target) {
@@ -772,7 +792,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                         }
                         catch(err)
                         {
-                            me.testerror("An error occurred in your callback(): "+err,true);
+                            me.testerror("An error occurred in your callback(): "+String(err),true);
                             deferred.reject(value);
                             return;
                         }

@@ -60,13 +60,19 @@
 
 
 				});
+				a.truthy(waitcb(3,a.callback()),"Waited 3 secs");
+				this.assert(wait(2),"Just waiting to resolve");
+			
 				a.equals(1,1,"refute 1=1");
 				// test failures
 				// a.contentsEqual(true,[1,2],"Simple arrays are the same");
 				// a.contentsEqual([1,2,3],[1,2],"Simple arrays are the same");
 				 a.contentsEqual([1,2,3,4],[1,2,3,4],"Simple arrays are the same");
 				//a.contentsEqual({prop1: "prop1value", prop2: "prop2value"},{prop1: "prop1value", prop2: "prop2value-diff"},"Simple arrays are the same");
-			});
+			
+			})
+
+			;
 
 			group.test("Large Test (#2), about 13",function(a,r) {
 
@@ -137,7 +143,7 @@
 				var x=0;
 
 				a.equals(2,wait(2),"A two second wait to show concurrent testing");
-			    a.equals(3,wait(3),"Wait returns the parameter it was passed after a time");
+			   // a.equals(3,wait(3),"Wait returns the parameter it was passed after a time");
 				a.equals(0,x,"x is zero");
 
 				a.then(function() {
@@ -145,7 +151,7 @@
 					a.equals(2,x,"x is 2"); // 3rd assert: passes
 
 				});
-
+				a.fail();
 			});
 		});
 
