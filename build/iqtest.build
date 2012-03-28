@@ -18,6 +18,13 @@
             target: "iqtest-browser-default.js"
         }
     
+    },
+    {
+        input: "iqtest.js",
+        output: {
+            action: "copy",
+            target: "./"
+        }
     }
     ]
 }
