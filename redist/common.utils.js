@@ -45,7 +45,7 @@
             return target;
         },
         toArray: function(arrLike,first,last) {
-            return Array.prototype.slice.call(arrLike,first || 0, last);
+            return Array.prototype.slice.call(arrLike,first || 0, last || arrLike.length);
         },
         isArray: function (obj) {
             return obj && obj.constructor === Array;

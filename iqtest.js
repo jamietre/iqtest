@@ -84,6 +84,14 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                     passed: !!obj,
                     err: u.formatAssert(message,'The object {0} is {not}truthy',String(obj))
                 };
+            },
+            // has special handling - the actual asserion doesn't know if it was given a promise, only the output.
+            // the queue funciton must verify
+            resolves: function(obj,message) {
+                return {
+                    passed: typeof obj !== 'undefined',
+                    err: u.formatAssert(message,'The object {0} did {not}resolve',String(obj))
+                };
             }
         });
 
@@ -277,11 +285,10 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             }
         },
         // standardize the format of the output from assertions
-        formatAssert: function(message,text,parms) {
-            return !text ? '' :
-             (message ? message+': ':'')+ parms ?
-                u.format(text,u.isArray(parms) ? parms : u.toArray(arguments,2)) :
-                '';
+        formatAssert: function(message,reason,parms) {
+            return !reason ? '' :
+             (message ? message+': ':'') +
+                u.format(reason,u.isArray(parms) ? parms : u.toArray(arguments,2));
         }
 
     };
@@ -290,12 +297,10 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
        
     TestGroup = function (options) {
         initialize();
-        this.tests = [];
         u.extend(this,
             u.extend(null,groupDefaults,options,true)
         );
-        this.promise=when.defer();
-        this.passed=null;
+        this.clear();
     };
 
     TestGroup.prototype = {
@@ -314,20 +319,23 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 },
                 test = new Test(testData);
 
-            me.tests.push(test);
+            me.add(test);
 
-            test.group=me;
-            test.id = me.tests.length;
             return me;
         },
         add: function(test) {
             var me=this;
+            function addTest(test) {
+                me.tests.push(test);
+                test.group=me;
+                test.id = me.tests.length;
+            }
             if (test.constructor === TestGroup) {
                 u.each(test.tests,function(i,e) {
-                    me.tests.push(e);
+                   addTest(e);
                 });
             } else if (test.constructor === Test) {
-                me.tests.push(test);
+                addTest(test);
             }
             return me;
         },
@@ -343,7 +351,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             
             u.each(me.tests,function(i,test) {
                 var assert=u.extend({},test.assert,{test: test}),
-                refute = u.extend({},test.assert,{test: test});
+                refute = u.extend({},test.refute,{test: test});
 
                 u.event(test.testStart,test,u.filter(test,"name"));
 
@@ -370,7 +378,8 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                         test._lastPromise=test.promise;
                         test._lastPromise.then(function() {
                             finishFunc(test);
-                        },function() {
+                        },function(err) {
+                            test.testerror(err,true);
                             finishFunc(test);
                         });
                         return;
@@ -391,7 +400,8 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 };
                 test.promise.then(function() {
                     finishFunc(test);
-                },function() {
+                },function(err) {
+                    test.testerror(err,true);
                     finishFunc(test);
                 });
             });
@@ -418,9 +428,22 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             }
         },
         configure: function(options) {
+            if (typeof options === 'string') {
+                options = {name: options};
+            }
             var allowed = u.extend({},groupDefaults);
             u.extend(allowed,options,true);
             u.extend(this,allowed);
+            return this;
+        },
+        reset: function() {
+            this.promise=when.defer();
+            this.passed=null;
+            return this;
+        },
+        clear: function() {
+            this.tests = [];
+            this.reset();
             return this;
         },
         // events
@@ -452,6 +475,8 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 count: 0,
                 countPassed: 0,
                 countFailed: 0,
+                // count to stop at when debugging is enabled
+                debugCount: 0,   
                 nextThen: [],
                 cbPromise: null,
                 resolver: null,
@@ -461,6 +486,9 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             });
             // resolve immediately to start the chain when the first thing is added
             this.promise.resolve();
+        },
+        nextIsProblemAssertion: function() {
+            return this.debug && !this.stopped && this.debugCount === this.count-1;
         },
         timeout: function(seconds) {
             var me=this,
@@ -474,6 +502,9 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
         },
         // set options for this test 
         configure: function(options) {
+            if (typeof options === 'string') {
+                options = {name: options};
+            }
             var allowedOpts =u.extend({},testDefaults);
             // update with current options, then with options passed
             u.extend(allowedOpts,this,options,true);
@@ -489,33 +520,23 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 },
                 oldPromise = me.promise,
                 newPromise = when.defer();
-            //     ,
-            //     newPromise = when.defer(),
-            //     prev = me.promise;
-
-            // newPromise.then(callback,errFunc);
-            // me.promise = newPromise;
-            // prev.then(newPromise.resolve,newPromise.reject);
             
-            newPromise.then(callback,errback);
+            newPromise.then(function(){
+                try {
+                    if (me.nextIsProblemAssertion()) {
+                        // the next event is the one causing you trouble
+                        debugger;
+                    }
+                    callback();
+                }
+                catch(err){
+                    me.testerror("An error occurred during a 'then' clause of an assertion: "+String(err),true);
+                }
+            }
+                ,errback);
             me.promise = newPromise;
             when.chain(oldPromise,newPromise);           
 
-            // prev.then(function() {
-            //     callback();
-            //     deferred.resolve();
-            // },function() {
-            //     deferred.reject();
-            //     errFunc();
-            // });
-            
-            // TODO
-            // if (me.afterNext.length>0) {
-            //     u.each(function(i,obj) {
-            //         me.promise.then(obj.callback,obj.errback);
-            //     });
-            //     me.afterNext=[];
-            // }
             return me;
         },
         //TODO
@@ -533,7 +554,10 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
         endTest: function (result) {
             // TODO: Option allowing logging of passed tests
             var output=result;
-
+            if (!this.itemRunning) {
+                this.testerror("Error: test was not running when endTest called: " + result.desc);
+                return;
+            }
             if (!result.passed) {
                 output=this.addResult(result);
                 this.countFailed++;
@@ -566,9 +590,11 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             var me=this, 
                 // internal methods are wrapped in tryTest - get their args as the 2nd arg in "args." Argh!
                 cbPos, 
-                methodArgs=assertionData[assertion.split('.')[1]].args,
+                assertionName=assertion.split('.')[1],
+                methodArgs=assertionData[assertionName].args,
                 hasMagicCallback,
-                deferred,next,
+                deferred,
+                next,
                 pending=[],
                 prev;
 
@@ -607,11 +633,17 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 me.cbPromise=null;
             }
 
+            // special case - must check argument for "resolves"
+            if (assertionName==='resolves') && !when.isPromise(args[0])) {
+                throw("The argument passed to 'resolves' was not a promise.");
+            }
+
             // wait for any promises or callbacks
             u.each(args,function(i,arg) {
 
                 // wait for any promises
                 if (when.isPromise(arg)) {
+
                     deferred = deferred || when.defer();
 
                     if (i===0 && hasMagicCallback) {
@@ -625,6 +657,8 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 }
 
             });
+
+
 
             // notify event handlers
             // do not replace current promise - this should not be blocking
@@ -641,10 +675,12 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
 
             if (pending.length) {
                 pending.push(me.promise);
-                // me.promise = when_timeout(
-                //     when.chain(when.all(pending),deferred),
-                //     me.timeoutSeconds*1000);
-                me.promise = deferred.promise;
+                
+                 me.promise = me.timeoutSeconds ? 
+                    when_timeout(deferred.promise,me.timeoutSeconds*1000):
+                    deferred.promise;
+
+                //me.promise = deferred.promise;
                 when.chain(when.all(pending),deferred);
                 
             } 
@@ -664,7 +700,11 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                      next.reject("The test failed");
                 }
             },function reject(err) {
-                next.reject(err);
+                if (me.itemRunning) {
+                    me.endTest({ passed: false,
+                        desc: String(err)
+                    });
+                }
             });
 
 
@@ -738,20 +778,11 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
         // when the debugging parm is true, will enable debugging for the group
         testerror: function(err, debug) {
             var me=this;
-            // if (me.resolver) {
-            //     // TODO there must be a better way..
-            //     try {
-            //         me.resolver.reject(err);
-            //     }
-            //     catch(err2)
-            //     {
-            //         //throw(err2);
-            //     }   
-            //     me.resolver=null;
-            // }
+            
             if (me.stopped) {
                 return;
             }
+            me.debugCount = me.count;
             me.stopped=true;
             me.passed=false;
             
