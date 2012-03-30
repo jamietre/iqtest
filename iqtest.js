@@ -7,7 +7,7 @@ MIT License
 */
 
 /*jslint novar:true, onevar: false, debug: true */
-/*global define, require, module, buster */
+/*global alert, define, require, module, buster */
 
 
 (function(define) {
@@ -594,9 +594,8 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 methodArgs=assertionData[assertionName].args,
                 hasMagicCallback,
                 deferred,
-                next,
-                pending=[],
-                prev;
+                next,prev,
+                pending=[];
 
             if (me.stopped) {
                 return me;
@@ -634,7 +633,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             }
 
             // special case - must check argument for "resolves"
-            if (assertionName==='resolves') && !when.isPromise(args[0])) {
+            if (assertionName==='resolves' && !when.isPromise(args[0])) {
                 throw("The argument passed to 'resolves' was not a promise.");
             }
 
