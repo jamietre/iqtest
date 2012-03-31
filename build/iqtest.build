@@ -3,8 +3,10 @@
     outputroot: "../dist",
     groups: [
     {
+
         input: "redist/when.js,redist/timeout.js,redist/buster-core.js,redist/buster-eventEmitter.js,
         redist/buster-assertions.js,redist/common.utils.js,iqtest.js,iqtest.assertions.js",
+
         output:
         {
             action: "combine",
@@ -12,8 +14,10 @@
         }
     },
     {
+
         input: "redist/when.js,redist/timeout.js,redist/buster-core.js,redist/buster-eventEmitter.js,
         redist/buster-assertions.js,redist/common.utils.js,iqtest.js,iqtest.assertions.js,iqtest-browser-harness.js",
+
         output:
         {
             action: "combine",
