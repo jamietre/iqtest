@@ -48,7 +48,7 @@
 	{
 		writer: function(el) {
 			var wrap = $(el);
-			wrap.empty();
+			//wrap.empty();
 
 			this.outputTarget = wrap;
 			return this;

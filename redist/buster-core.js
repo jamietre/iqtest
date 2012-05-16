@@ -62,7 +62,7 @@ var buster = (function (setTimeout, B) {
         },
 
         isElement: function isElement(obj) {
-            return obj && buster.isNode(obj) && obj.nodeType === 1;
+            return obj && obj.nodeType === 1 && buster.isNode(obj);
         },
 
         isArray: function isArray(arr) {
@@ -142,7 +142,7 @@ var buster = (function (setTimeout, B) {
         }
     };
 
-    if (!Array.prototype.some) {
+    if (Array.prototype.some) {
         buster.some = function (arr, fn, thisp) {
             return arr.some(fn, thisp);
         };

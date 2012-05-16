@@ -7,7 +7,7 @@ MIT License
 */
 
 /*jslint novar:true, onevar: false, debug: true */
-/*global define, require, module, buster */
+/*global alert, define, require, module, buster, u */
 
 
 (function(define) {
@@ -16,17 +16,26 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
     var Test, TestGroup, Assert,
     // default values for TestGroup
     groupDefaults = {
-        name: "Unnamed Test Group",   
+
+        // a description of the test
+        name: "test-group", 
+
+        desc: "Unnamed Test Group",
+        
          // when true, will not trap errors in the test itself.
         debug: false,
-        // passed assertions should be show in any output
-        showPassed: false
-        // events
+        
+        // passed assertions should be show in any output (normally, only the results of each test are shown)
+        showPassed: false,
+        
+        // functions to run on setup or teardown
+        setup: null,
+        teardown: null
         
     },
     // default values for Test and also defines allowed options
     testDefaults = {
-        name: "",
+        name: "test",
         desc: "Unnamed Test",
         func: null,
         showPassed: false,
@@ -52,7 +61,6 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
 
     function captureMethodArgs(method,func)
     {
-
         // get metadata by examining error message
         var matches=0,
         reg=/^.*?Expected.*?([0-9]) argument[s]?\s*$/;
@@ -68,6 +76,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             args: matches 
         };
     }
+
     function initialize()
     {
         var ba,tp;
@@ -158,122 +167,15 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             initialized=true;
         });
     }
-    u = {
-        // when onlyInSource is true, properties will not be added - only updated
-        // passing a falsy value as the target results in a new object being created
-        // and onlyInTarget is irrelevant
-        extend: function (target) {
-            var prop, source, sources, i,
-                li = arguments.length,
-                lastBool = u.isBool(arguments[li-1]),
-                len = lastBool ?
-                    li-2 : li-1,
-                emptyTarget=!target,
-                onlyInTarget = lastBool ?
-                        arguments[len+1] : false;
 
-                target = target||{};
+    // u needs to be imported from common.utils
 
-                sources=u.toArray(arguments,1,len+1);
-
-            for (i=0;i<sources.length;i++) {
-                source = sources[i];
-                for (prop in source) {
-                    if (source.hasOwnProperty(prop) 
-                        && (emptyTarget || !onlyInTarget || target.hasOwnProperty(prop))) {
-                        target[prop] = source[prop];
-                    }
-                }
-                // start honoring onlyInTarget after the first source
-                emptyTarget=false;
-            }
-            return target;
-        },
-        // copy selected properties to a new object
-        filter: function(source,what) {
-            var target={},
-                props = u.isArray(what) ? 
-                what :
-                what.split(',');
-
-            u.each(props,function(i,prop) {
-                target[prop]=source[prop];
-            });
-            return target;
-        },
-        toArray: function(arrLike,first,last) {
-            return Array.prototype.slice.call(arrLike,first || 0, last);
-        },
-        isArray: function (obj) {
-            return obj && obj.constructor === Array;
-        },
-        isFunction: function (obj) {
-            return typeof obj === 'function';
-        },
-        isString: function(obj) {
-            return typeof obj === 'string';
-        },
-        isBool: function(obj) {
-            return typeof obj === 'boolean';
-        },
-        trim: function(str) {
-            return str.replace(/^\s\s*/, '').replace(/\s\s*$/, '');
-        },
-        //split with trim (why would you want it any other way?)
-        split: function(str,delim) {
-            var result=[];
-            u.each(str.split(str,delim),function(i,e) {
-                result.push(u.trim(e));
-            });
-            return result;
-        },
-        // replaces {0}.. {n} with the ordinal valued parameter. You can also pass an 
-        // array instead of multiple parameters
-        format: function (text) {
-            var args = (arguments.length === 2 && u.isArray(arguments[1])) ?
-                arguments[1] :
-                this.toArray(arguments,1);
-            return text.replace(/\{(\d+)\}/g, function (match, number) {
-                return typeof args[number] !== 'undefined'
-              ? String(args[number])
-              : match
-            ;
-            });
-        },
-        // usual each, if you happen to pass a string, it will split it on commas.
-        // it will always trim string values in an array.
-        each: function (coll, cb) {
-            var i,val;
-            if (u.isString(coll))
-            {
-                coll=coll.split(',');
-            }
-            if (u.isArray(coll)) {
-                for (i = 0; i < coll.length; i++) {
-                    val = u.isString(coll[i]) ?
-                        u.trim(coll[i]) : coll[i];
-
-                    if (cb.call(val, i, val)===false) {
-                        break;
-                    }
-                }
-            } else {
-                for (i in coll) {
-                    if (coll.hasOwnProperty(i)) {
-                        if (cb.call(coll[i], i, coll[i])===false) {
-                            break;
-                        }
-                    }
-                }
-            }
-        },
-        // ugh
+    $.extend(u, {
         event: function(func,that,parm) {
             if (u.isFunction(func)) {
                 func.call(that,parm);
             }
         },
-        donothing: function() {},
         // throw an error if the 'args' array has fewer than 'expected' elements.
         expectOpts: function(args,expected) {
             if ((args ? args.length : 0) < expected) {
@@ -291,40 +193,48 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 u.format(reason,u.isArray(parms) ? parms : u.toArray(arguments,2));
         }
 
-    };
+    });
 
     /* Begin Main Code */
-       
-    TestGroup = function (options) {
+    
+    /* Shared functions */
+
+    function doEvent(obj,method /* [,parms] */ ) {
+        if (obj[method]) {
+            obj[method].apply(this,u.toArray(arguments,2));
+        }
+    }
+
+    /* Test objects */
+
+    TestGroup = function (name, desc, options) {
         initialize();
+
+        var opts = name && typeof name === 'object' ? name:
+            desc && typeof desc === 'object' ? desc : 
+            options || {};
+
+        if (typeof desc === 'string') {
+            opts.name=name;
+        }
+        if (typeof desc === 'string') {
+            opts.desc=desc;
+        }
         u.extend(this,
-            u.extend(null,groupDefaults,options,true)
+            u.extend(null,groupDefaults,opts,true)
         );
         this.clear();
     };
 
     TestGroup.prototype = {
         constructor: TestGroup,
-        // "test" should be a function with one parameter, this parameter is passed as an object
-        // representing the current test object.
-        test: function(name,desc,func) {
-            var me=this,
-                hasDesc = !!func,
-                testData = {
-                    name: name,
-                    desc: hasDesc ? desc : '',
-                    func: hasDesc ? func : desc,
-                    debug: me.debug,
-                    showPassed: me.showPassed
-                },
-                test = new Test(testData);
-
-            me.add(test);
-
-            return me;
-        },
+        // Add a new test to this group. This can be a Test object, or a 
+        // add: function(name [,description],func)
         add: function(test) {
-            var me=this;
+            var hasDesc, func, description, 
+                testData,
+                me=this;
+
             function addTest(test) {
                 me.tests.push(test);
                 test.group=me;
@@ -336,24 +246,40 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 });
             } else if (test.constructor === Test) {
                 addTest(test);
+            } else if (typeof test === 'string') {
+                description = arguments[1];
+                func = arguments[2];
+                hasDesc = !!func;
+                testData = {
+                    name: test,
+                    desc: hasDesc ? description : '',
+                    func: hasDesc ? func : description,
+                    debug: me.debug,
+                    showPassed: me.showPassed
+                };
+                addTest(new Test(testData));
             }
             return me;
         },
-        run: function (name, desc, func) {
+        // run the tests that have been added to this test group
+        run: function () {
             var finishFunc,
                 me=this;
+
+            doEvent.call(this,this,"setup");
 
             u.each(me.tests,function(i,test) {
                 test.reset();
             });
 
-            u.event(me.groupStart,me,u.filter(me,"name,desc"));
+            u.event(me.groupStart,me,u.filterProps(me,"name,desc"));
             
             u.each(me.tests,function(i,test) {
                 var assert=u.extend({},test.assert,{test: test}),
                 refute = u.extend({},test.refute,{test: test});
 
-                u.event(test.testStart,test,u.filter(test,"name"));
+                doEvent.call(test,test,"setup");
+                u.event(test.testStart,test,u.filterProps(test,"name"));
 
                 if (test.debug) {
                     test.func.call(test,assert,refute);
@@ -389,13 +315,15 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                     }
                     test._allPass &= test.passed;
                     
-                    u.event(test.testEnd,test,u.filter(test,"count,passed"));
+                    u.event(test.testEnd,test,u.filterProps(test,"count,passed"));
+                    doEvent.call(test,test,"teardown");
 
                     if (test===me.tests[me.tests.length-1]){
                         if (u.isBool(test.passed)) {
                             me.passed=test._allPass;
                         }
-                        u.event(me.groupEnd,me,u.filter(test,"passed"));
+                        u.event(me.groupEnd,me,u.filterProps(test,"passed"));
+                        doEvent.call(this,this,"teardown");
                     }
                 };
                 test.promise.then(function() {
@@ -476,7 +404,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 countPassed: 0,
                 countFailed: 0,
                 // count to stop at when debugging is enabled
-                debugCount: 0,   
+                debugCount: -1,   
                 nextThen: [],
                 cbPromise: null,
                 resolver: null,
@@ -488,7 +416,8 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             this.promise.resolve();
         },
         nextIsProblemAssertion: function() {
-            return this.debug && !this.stopped && this.debugCount === this.count-1;
+            return this.debug && !this.stopped && this.debugCount>=0 
+                && this.debugCount === this.count-1;
         },
         timeout: function(seconds) {
             var me=this,
@@ -594,9 +523,8 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 methodArgs=assertionData[assertionName].args,
                 hasMagicCallback,
                 deferred,
-                next,
-                pending=[],
-                prev;
+                next,prev,
+                pending=[];
 
             if (me.stopped) {
                 return me;
@@ -732,6 +660,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 if (err.name !== 'AssertionError') {
                     if (this.debug) {
                         debugger;
+                        // Continue execution to try the assertion again
                         module.apply(null, args);  
                     } else {
                         this.debug=true;
@@ -882,16 +811,17 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
         log: u.donothing
     };
 
+    // PUBLIC API
 
     return {
-        configure: function(options) {
-            var group = new TestGroup(options);
+        // Create & return a new test group and configure with the options passed
+        create: function(name,desc,options) {
+            var group = new TestGroup(name,desc,options);
             return group;
         },
-        test: function () {
-            // TODO: chaining - this will be called from 
-            var group = new TestGroup(this);
-            return group.test.apply(group,u.toArray(arguments));
+
+        add: function () {
+            return this.add.apply(this,u.toArray(arguments));
         },
         extend: function(assertions) {
             iq_asserts.push(assertions);
@@ -921,5 +851,4 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 this.buster ? this.buster.assert : null);
         }
     }
-    // Boilerplate for AMD, Node, and browser global
 ));

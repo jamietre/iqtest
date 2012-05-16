@@ -17,23 +17,27 @@ if (typeof require == "function" && typeof module == "object") {
         return eventEmitter.listeners[event];
     }
 
-    function thisObjects(eventEmitter, event) {
-        if (!eventEmitter.contexts) {
-            eventEmitter.contexts = {};
-        }
-
-        if (!eventEmitter.contexts[event]) {
-            eventEmitter.contexts[event] = [];
-        }
-
-        return eventEmitter.contexts[event];
-    }
-
     function throwLater(event, error) {
         buster.nextTick(function () {
             error.message = event + " listener threw error: " + error.message;
             throw error;
         });
+    }
+
+    function addSupervisor(emitter, listener, thisObject) {
+        if (!emitter.supervisors) { emitter.supervisors = []; }
+        emitter.supervisors.push({
+            listener: listener,
+            thisObject: thisObject
+        });
+    }
+
+    function notifyListener(emitter, event, listener, args) {
+        try {
+            listener.listener.apply(listener.thisObject || emitter, args);
+        } catch (e) {
+            throwLater(event, e);
+        }
     }
 
     buster.eventEmitter = {
@@ -42,12 +46,16 @@ if (typeof require == "function" && typeof module == "object") {
         },
 
         addListener: function addListener(event, listener, thisObject) {
+            if (typeof event === "function") {
+                return addSupervisor(this, event, listener);
+            }
             if (typeof listener != "function") {
                 throw new TypeError("Listener is not function");
             }
-
-            eventListeners(this, event).push(listener);
-            thisObjects(this, event).push(thisObject);
+            eventListeners(this, event).push({
+                listener: listener,
+                thisObject: thisObject
+            });
         },
 
         once: function once(event, listener, thisObject) {
@@ -63,10 +71,10 @@ if (typeof require == "function" && typeof module == "object") {
 
         hasListener: function hasListener(event, listener, thisObject) {
             var listeners = eventListeners(this, event);
-            var contexts = thisObjects(this, event);
 
             for (var i = 0, l = listeners.length; i < l; i++) {
-                if (listeners[i] == listener && contexts[i] === thisObject) {
+                if (listeners[i].listener === listener &&
+                    listeners[i].thisObject === thisObject) {
                     return true;
                 }
             }
@@ -78,7 +86,7 @@ if (typeof require == "function" && typeof module == "object") {
             var listeners = eventListeners(this, event);
 
             for (var i = 0, l = listeners.length; i < l; ++i) {
-                if (listeners[i] == listener) {
+                if (listeners[i].listener == listener) {
                     listeners.splice(i, 1);
                     return;
                 }
@@ -87,15 +95,16 @@ if (typeof require == "function" && typeof module == "object") {
 
         emit: function emit(event) {
             var listeners = eventListeners(this, event);
-            var contexts = thisObjects(this, event);
             var args = Array.prototype.slice.call(arguments, 1);
 
             for (var i = 0, l = listeners.length; i < l; i++) {
-                try {
-                    listeners[i].apply(contexts[i] || this, args);
-                } catch (e) {
-                    throwLater(event, e);
-                }
+                notifyListener(this, event, listeners[i], args);
+            }
+
+            listeners = this.supervisors || [];
+            args = Array.prototype.slice.call(arguments);
+            for (i = 0, l = listeners.length; i < l; ++i) {
+                notifyListener(this, event, listeners[i], args);
             }
         },
 

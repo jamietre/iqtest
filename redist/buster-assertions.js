@@ -12,7 +12,7 @@
     }
 
     function countAssertion() {
-        if (typeof ba.count != "number") { 
+        if (typeof ba.count != "number") {
             ba.count = 0;
         }
 
@@ -133,8 +133,25 @@
 
     ba.isDate = isDate;
 
+    // Fixes NaN === NaN (should be true) and
+    // -0 === +0 (should be false)
+    // http://wiki.ecmascript.org/doku.php?id=harmony:egal
+    function egal(x, y) {
+        if (x === y) {
+            // 0 === -0, but they are not identical
+            return x !== 0 || 1 / x === 1 / y;
+        }
+        
+        // NaN !== NaN, but they are identical.
+        // NaNs are the only non-reflexive value, i.e., if x !== x,
+        // then x is a NaN.
+        // isNaN is broken: it converts its argument to number, so
+        // isNaN("foo") => true
+        return x !== x && y !== y;
+    }
+
     function areEqual(expected, actual) {
-        if (expected === actual) {
+        if (egal(expected, actual)) {
             return true;
         }
 
@@ -234,7 +251,7 @@
         }
     };
 
-    assert.message = "[assert] Expected ${0} to be thruthy";
+    assert.message = "[assert] Expected ${0} to be truthy";
     ba.count = 0;
 
     ba.fail = function (message) {
@@ -275,10 +292,10 @@
 
     ba.add("same", {
         assert: function (actual, expected) {
-            return actual === expected;
+            return egal(actual, expected);
         },
         refute: function (actual, expected) {
-            return actual !== expected;
+            return !egal(actual, expected);
         },
         assertMessage: "${2}${0} expected to be the same object as ${1}",
         refuteMessage: "${2}${0} expected not to be the same object as ${1}",
@@ -328,6 +345,28 @@
     });
 
     assert.equals.multiLineStringHeading = "${0}Expected multi-line strings to be equal:\n";
+
+    ba.add("greater", {
+        assert: function (actual, expected) {
+            return actual > expected;
+        },
+
+        assertMessage: "${2}Expected ${0} to be greater than ${1}",
+        refuteMessage: "${2}Expected ${0} to be less than or equal to ${1}",
+        expectation: "toBeGreaterThan",
+        values: actualAndExpectedMessageValues
+    });
+
+    ba.add("less", {
+        assert: function (actual, expected) {
+            return actual < expected;
+        },
+
+        assertMessage: "${2}Expected ${0} to be less than ${1}",
+        refuteMessage: "${2}Expected ${0} to be greater than or equal to ${1}",
+        expectation: "toBeLessThan",
+        values: actualAndExpectedMessageValues
+    });
 
     ba.add("defined", {
         assert: function (actual) {
@@ -599,13 +638,13 @@
     refute.exception.message = "${0}Expected not to throw but threw ${1} (${2})";
     refute.exception.expectationName = "toThrow";
 
-    ba.add("inDelta", {
+    ba.add("near", {
         assert: function (actual, expected, delta) {
             return Math.abs(actual - expected) <= delta;
         },
         assertMessage: "${3}Expected ${0} to be equal to ${1} +/- ${2}",
         refuteMessage: "${3}Expected ${0} not to be equal to ${1} +/- ${2}",
-        expectation: "toBeInDelta",
+        expectation: "toBeNear",
         values: function (actual, expected, delta, message) {
             return [actual, expected, delta, msg(message)];
         }
@@ -618,6 +657,21 @@
         assertMessage: "${2}Expected ${0} to have ${1} on its prototype chain",
         refuteMessage: "${2}Expected ${0} not to have ${1} on its prototype chain",
         expectation: "toHavePrototype",
+        values: actualAndExpectedMessageValues
+    });
+
+    ba.add("contains", {
+        assert: function (haystack, needle) {
+            for (var i = 0; i < haystack.length; i++) {
+                if (haystack[i] === needle) {
+                    return true;
+                }
+            }
+            return false;
+        },
+        assertMessage: "${2}Expected [${0}] to contain ${1}",
+        refuteMessage: "${2}Expected [${0}] not to contain ${1}",
+        expectation: "toContain",
         values: actualAndExpectedMessageValues
     });
 

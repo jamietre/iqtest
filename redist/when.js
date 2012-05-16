@@ -1,3 +1,6 @@
+/** NOTE: MODIFIED - must not catch errors for use in IQTest */
+/*lint-ignore-file*/
+
 /** @license MIT License (c) copyright B Cavalier & J Hann */
 
 /**
@@ -109,12 +112,12 @@ define(function() {
             checkCallbacks(arguments);
 
             var nextValue;
-            try {
+            //try {
                 nextValue = callback && callback(value);
                 return promise(nextValue === undef ? value : nextValue);
-            } catch(e) {
-                return rejected(e);
-            }
+            //} catch(e) {
+            //    return rejected(e);
+            //}
         };
 
         // Not frozen because this should never be exposed
@@ -138,7 +141,7 @@ define(function() {
             checkCallbacks(arguments);
 
             var nextValue;
-            try {
+            //try {
                 if(errback) {
                     nextValue = errback(reason);
                     return promise(nextValue === undef ? reason : nextValue)
@@ -146,9 +149,9 @@ define(function() {
 
                 return rejected(reason);
 
-            } catch(e) {
+            //} catch(e) {
                 return rejected(e);
-            }
+            //}
         };
 
         // Not frozen because this should never be exposed
