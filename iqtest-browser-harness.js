@@ -1,5 +1,5 @@
 /*
-	A harness for iqtest
+	An HTML output writer for iqtest
 
 	Uses options on the TestGroup:
 	groupTemplate: {name} = group name
@@ -9,11 +9,12 @@
 	This should append itself to iqtest.writers.xxx
 
 */
-/*global iqtest */
+/*global iqtest, when */
 /*jslint smarttabs:true  */
 
 (function(iqtest) {
-	var tpl = {
+	var u = iqtest.impl.utility,
+		options = {
 			group:'<pre><h1>Starting test group "<span class="test-name"></span>": <span class="test-groupstatus"></span></h1>'+
 				'<div><div></div></div></pre>',
 			testStart: '<h2>Starting test "<span class="test-name"></span>": <span class="test-teststatus"></span></h2><div></div>',
@@ -24,16 +25,21 @@
 			log: '<span style="color:purple"><span class="test-logmessage"></span><br/>',
 			// the following are just formats 
 			resultSuccess: '<span style="color:green"></span>',
-			resultFail:'<span style="color:red"></span>'
+			resultFail:'<span style="color:red"></span>',
+			showPassed: false
 			
 		};
 	
 	// replace every element in "el" containing class "test-*" with the value of properties "*"
 	function tmpReplace(el,obj){
-		var replaceEl,prop;
+		var sel,replaceEl,prop;
 		for (prop in obj) {
 			if (obj.hasOwnProperty(prop)) {
-				replaceEl = el.find('.test-'+prop.toLowerCase());
+				sel = '.test-'+prop.toLowerCase();
+				replaceEl = $(sel,el);
+				if (!replaceEl.length) {
+					replaceEl=$(el).filter(sel);
+				}
 				replaceEl.empty().append(obj[prop]);				
 			}
 		}
@@ -41,7 +47,7 @@
 	}
 
 	function getResultOutput(passed) {
-		var tmpl = passed ? tpl.resultSuccess: tpl.resultFail;
+		var tmpl = passed ? options.resultSuccess: options.resultFail;
 		
 		return $(tmpl).text(passed ? "Passed":"Failed");
 	}
@@ -49,7 +55,7 @@
 	/* Implementation */
 
 	function groupStart(group) {
-		var groupWrapper = tmpReplace($(tpl.group).clone(),{
+		var groupWrapper = tmpReplace($(options.group).clone(),{
 			name: group.name,
 			groupstatus: "Running"
 		});
@@ -69,7 +75,7 @@
 	function testStart(test) {
 			
 		var testData = this.getTestData(test.id),
-			content= tmpReplace($(tpl.testStart).clone(),{
+			content= tmpReplace($(options.testStart).clone(),{
 				name: test.name,
 				teststatus: "Running"
 			});
@@ -82,7 +88,7 @@
 
 	function testEnd(test) {
 		var testData = this.getTestData(test.id),
-			content = tmpReplace($(tpl.testEnd).clone(),{
+			content = tmpReplace($(options.testEnd).clone(),{
 				count: test.count
 			});
 
@@ -96,7 +102,8 @@
 	function itemStart(test,testinfo)
 	{
 		var testData = this.getTestData(test.id),
-			tempItem= tmpReplace($(tpl.itemStart),{
+			tempItem= tmpReplace($(options.itemStart).clone(),{
+				number: testinfo.count,
 				assertion: testinfo.assertion,
 				message: testinfo.desc
 			});
@@ -109,11 +116,11 @@
 		var testData = this.getTestData(test.id);
 
 		if (response.passed) {
-			if (!this.owner.showPassed) {
+			if (!options.showPassed) {
 				testData.itemTarget.remove();
 			}
 		} else {
-			testData.itemTarget.replaceWith(tmpReplace($(tpl.itemEnd).clone(),{
+			testData.itemTarget.replaceWith(tmpReplace($(options.itemEnd).clone(),{
 				failmessage: response.fulltext
 			}));
 		}
@@ -122,7 +129,7 @@
 	}
 	function testLog(test,message) {
 		var testData = this.getTestData(test.id);
-		testData.testContainer.append(tmpReplace($(tpl.log).clone(),{
+		testData.testContainer.append(tmpReplace($(options.log).clone(),{
 			logmessage: message
 		}));
 	}
@@ -136,22 +143,41 @@
 	//	});
 	//	}
 
-	function HtmlWriter(container) {
+	// ensure that errors don't ever cause a promise to fail. errors in the harness should always
+	// cause execution to stop.
+
+	function safeMethod(method) {
+		return function() {
+			var error;
+			try {
+				method.apply(this,u.toArray(arguments));
+			}
+			catch(err) {
+				when.debug=true;
+				throw error;
+			}
+		};
+	}
+	function HtmlWriter(container, opts) {
 		// when added to a TestGroup, the group should assign itself to owner
 		this.owner=null;
 		this.container=container;
 		this.tests={};
+
+		if (typeof opts==='object') {
+			$.extend(options,opts);
+		}
 	}
 
 	HtmlWriter.prototype = {
 		constructor: HtmlWriter,
-		groupStart: groupStart,
-		groupEnd: groupEnd,
-		testStart: testStart,
-		testEnd: testEnd,
-		itemStart: itemStart,
-		itemEnd: itemEnd,
-		testLog: testLog,
+		groupStart: safeMethod(groupStart),
+		groupEnd: safeMethod(groupEnd),
+		testStart: safeMethod(testStart),
+		testEnd: safeMethod(testEnd),
+		itemStart: safeMethod(itemStart),
+		itemEnd: safeMethod(itemEnd),
+		testLog: safeMethod(testLog),
 		// internal api
 		getTestData: function(id) {
 			if (!this.tests[id]) {

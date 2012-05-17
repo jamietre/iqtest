@@ -43,10 +43,11 @@
 		var group = iqtest.create(
 		{
 			name: "Sample IQ Test Group",
-			timeoutSeconds: 5,
-			showPassed: true
+			timeout: 5
 		})
-		.writer("html",$('#wrap'));
+		.writer("html",$('#wrap'), {
+			showPassed: true
+		});
 
 		$('#startTest').bind('click',function(e) {
 			group.run();
@@ -55,8 +56,8 @@
 		group.add("Small Test (#1), about 4 total",function(a,r) {
 
 			a.equals(1,1,"a test");
-			a.resolves(wait(15),"resolves");
-			this.assert(true);
+			a.resolves(wait(8),"resolves");
+			this.assert(true,"assert true");
 			r.truthy(true,"False isn't true!!")
 			.then(function() {
 					a.equals(1,1,"In my then1");
@@ -73,9 +74,9 @@
 			 a.contentsEqual([1,2,3,4],[1,2,3,4],"Simple arrays are the same");
 			//a.contentsEqual({prop1: "prop1value", prop2: "prop2value"},{prop1: "prop1value", prop2: "prop2value-diff"},"Simple arrays are the same");
 		
-		})
+		});
 
-		;
+
 
 		group.add("Large Test (#2), about 13",function(a,r) {
 

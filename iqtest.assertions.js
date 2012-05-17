@@ -1,6 +1,9 @@
  /*
 Assertions for IQ Test (other than buster)
-This doesn't actually require iqtest, so it can be included before or after.
+This requires iqtest to use its utility methods so must be included afterwards
+
+Each assertion should throw an error when called with no args: "Expected 1 argument[s]"
+This is necessary for iqtest to determine the position of the "message" argument
  */
 
 /*jslint eqeqeq:false */
@@ -66,15 +69,7 @@ define(function(iqtest) {
             actualArr=actual, 
             expectedArr=expected;
 
-        // // map each "own" property value to an array, which we can then compare directly.
-        // function objToArray(obj)
-        // {
-        //     var arr=[];
-        //     u.each(obj,function(i,el) {
-        //         arr.push(el);
-        //     });
-        //     return arr;
-        // }
+
         // return first index at which arrays differ
         function arraysEqual(obj1,obj2) {
             for (var i=0;i<obj1.length;i++) {
@@ -94,7 +89,7 @@ define(function(iqtest) {
             });
         }
 
-        u.expectOpts(2);
+        u.expectOpts(arguments,2);
 
         if (typeof actual !== typeof expected) {
             reason = u.format('the objects are {not}different types (expected is {0}, actual is {1})',typeof expected, typeof actual);
@@ -137,6 +132,7 @@ define(function(iqtest) {
     }
     /// compare only value-typed properties
     function valuePropertiesEqual(expected,actual,message) {
+        u.expectOpts(arguments,2);
         return propertiesEqual(expected,actual,message,true);
     }
 

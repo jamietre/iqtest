@@ -25,10 +25,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
         
          // when true, will not trap errors in the test itself.
         debug: false,
-        
-        // passed assertions should be show in any output (normally, only the results of each test are shown)
-        showPassed: false,
-        
+        timeout: 10,        
         // functions to run on setup or teardown
         setup: null,
         teardown: null
@@ -39,8 +36,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
         name: "test",
         desc: "Unnamed Test",
         func: null,
-        showPassed: false,
-        timeoutSeconds: 10,
+        timeout: 10,
         // there is a test-specific debug option so that currently running tests will remain
         // in non-debug mode after another one fails
         debug: false
@@ -98,6 +94,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             // has special handling - the actual asserion doesn't know if it was given a promise, only the output.
             // the queue funciton must verify
             resolves: function(obj,message) {
+                u.expectOpts(arguments,1);
                 return {
                     passed: typeof obj !== 'undefined',
                     err: u.formatAssert(message,'The object {0} did {not}resolve',String(obj))
@@ -241,7 +238,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 desc: hasDesc ? description : '',
                 func: hasDesc ? func : description,
                 debug: me.debug,
-                showPassed: me.showPassed
+                timeout: me.timeout
             };
             addTest(new Test(testData));
         }
@@ -501,14 +498,14 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             return this.debug && !this.stopped && this.debugCount>=0 
                 && this.debugCount === this.count-1;
         },
-        timeout: function(seconds) {
+        timeoutOnce: function(seconds) {
             var me=this,
-                originalTimeout = me.timeoutSeconds;
+                originalTimeout = me.timeout;
             me.then(function() {
-                me.timeoutSeconds = seconds;
+                me.timeout = seconds;
             });
             me.afterNext(function() {
-                me.timeoutSeconds = originalTimeout;
+                me.timeout = originalTimeout;
             });
         },
         // set options for this test 
@@ -529,10 +526,11 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                     // stop logging all the inevitable timeouts.
                     me.testerror(err,false);
                 },
-                oldPromise = me.promise,
-                newPromise = when.defer();
+                prev = me.promise,
+                next = when.defer();
             
-            newPromise.then(function(){
+            me.promise = next;
+            prev.then(function(){
                 try {
                     if (me.nextIsProblemAssertion()) {
                         // the next event is the one causing you trouble
@@ -543,12 +541,20 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 catch(err){
                     me.testerror("An error occurred during a 'then' clause of an assertion: "+String(err),true);
                 }
-            }
-                ,errback);
-            me.promise = newPromise;
-            when.chain(oldPromise,newPromise);           
+            },errback);
+
+            
+            when.chain(prev,next);           
 
             return me;
+        },
+        chain: function(callback,errback) {
+            var next = when.defer(),
+                prev = this.promise;
+
+            this.promise = next.promise;
+            prev.then(callback,errback || this.testerror);
+            when.chain(prev,next);
         },
         //TODO
         afterNext: function(callback,errback) {
@@ -556,10 +562,12 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
         },
         startTest: function (info) {
             this.count++;
-            this.doWriterEvent("itemStart",u.extend({},info,
+            // cache the active assertion data
+            this.assertionInfo = u.extend({},info,
             {
                 count: this.count
-            }));
+            });
+            this.doWriterEvent("itemStart",this.assertionInfo);
             this.itemRunning=true;
         },
         endTest: function (result) {
@@ -644,11 +652,14 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             }
 
             // special case - must check argument for "resolves"
+
             if (assertionName==='resolves' && !when.isPromise(args[0])) {
                 throw("The argument passed to 'resolves' was not a promise.");
             }
 
-            // wait for any promises or callbacks
+            // check all the arguments to this assertion for promises or callbacks; if any are found,
+            // add to our list of things to do before resolving this assertion.
+
             u.each(args,function(i,arg) {
 
                 // wait for any promises
@@ -668,31 +679,27 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
 
             });
 
-
-
-            // notify event handlers
-            // do not replace current promise - this should not be blocking
-
-            me.then(function() {
-
+            // queue a promise that will emit events when the test has started.
+           
+            this.chain(function() {
                 me.startTest({
                     desc: assertMessage(assertion,args),
                     assertion: assertion
                 });
             });
+            
 
-            // wait for everything async that's going on
+            // if there are pending promises, then wait for all those events (in addition to the last promise)
+            // before resolving. Add a timeout on top of it if necessary.
 
             if (pending.length) {
                 pending.push(me.promise);
                 
-                 me.promise = me.timeoutSeconds ? 
-                    when_timeout(deferred.promise,me.timeoutSeconds*1000):
+                me.promise = me.timeout ? 
+                    when_timeout(deferred.promise,me.timeout*1000):
                     deferred.promise;
 
-                //me.promise = deferred.promise;
                 when.chain(when.all(pending),deferred);
-                
             } 
 
 
@@ -760,26 +767,27 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             this.endTest(result);
             return result.passed;
         },
+        /// add the current test results as properties to the object passed in 
         addResult: function (result) {
 
             var output = u.extend({}, result),
-                    msg = output.passed ?
+                    passfail = output.passed ?
                      "passed" :
                      "failed";
 
             // "Test #[1] [assertEq] [passed|failed] [with result "message"] [in test "test"]
 
             output.count = this.count;
-
-            output.fulltext = u.format('Test #{0} {1}{2}{3}',
+            output.fulltext = u.format('Test #{0} {1} {2} {3}{4}',
                     this.count,
-                    msg,
+                    this.assertionInfo.assertion,
+                    passfail,
                     output.passed ? 
                         '' : 
-                        ': ' + result.err,
-                    result.desc ? 
-                        u.format(' in test "{0}"', result.desc) 
-                        : ''
+                        ': ' + result.desc,
+                    
+                    u.format(' in test "{0}"', this.assertionInfo.desc) 
+                        
                     );
 
             this.results.push(output);
@@ -810,7 +818,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
         // create a callback that the next assert will wait for, optionally expiring.
         callback: function(target,timeout) {
             var me=this,
-                t = timeout || me.timeoutSeconds,
+                t = timeout || me.timeout,
                 deferred = when.defer();
 
             // if no timeout is specified, the actual function is already wrapped by a timeout so not needed
@@ -847,7 +855,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
         backpromise: function(func,callback,timeout) {
             var defer=when.defer(),
                 me=this,
-                t=timeout || me.timeoutSeconds,
+                t=timeout || me.timeout,
                 cb=function() {
                     var value;
                     if (me.debug) {
