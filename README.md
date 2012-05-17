@@ -90,10 +90,27 @@ This is all so new, but here's an example. Assume a function called "wait" that 
 An example. This is similar to what's in the example here, some tests are designed to fail for illustration purposes.
 
 	iqtest
-		.writer($('#output'))
-		.test("Test 1",function(assert) {
+
+        // create a new test group. "create" just returns an instance of a TestGroup object from iqtest.
+        // the parameters are an ID, and a description. These are purely for your use. The ID may help 
+        // you identify the test from a runner.
+
+        .create("sample","A sample test group")
+
+        // "writer" adds an output handler to the test group. writers are added by external code modules that
+        // should add their constructor function to "iqtest.writers". See "iqtest-browser-harness.js" for
+        // for the format. A test writer should expose an expected API that iqtest will call on certain events.
+
+		.writer("html",$('#output'), {
+                showPassed: true
+            })
+
+        // "test" creates a new test based on a function. The fuction will be called with two parameters,
+        // assert and refute. Each of these exposes the buster.js assertions (plus a few more)
+
+		.test("Test 1",function(a,r) {
 		
-			assert(true,"A true value is true")
+			a.isTrue(true,"A true value is true")
 				.then(function() {
 					assert.equals(3,3,"Should fail 3=3");
 				}); 
@@ -102,7 +119,7 @@ An example. This is similar to what's in the example here, some tests are design
 			// it's second parameter is a callback function. we can
             // let iqtest create one to use for us.
 
-			assert.equals(2,wait(2),"Waited 2 secs")
+			a.equals(2,wait(2),"Waited 2 secs")
 				.equals(3,waitcb(3,assert.callback()),"Waited 3 secs")
 				.pass('Got through two chained callbacks');
 
@@ -113,7 +130,7 @@ An example. This is similar to what's in the example here, some tests are design
 			var cbHandler = function(response) {
 				return response*2;
 			};
-			assert.equals(6,waitcb(3,assert.callback(cbHandler)),"Waited 3 secs and multiplied by 2")
+			a.equals(6,waitcb(3,a.callback(cbHandler)),"Waited 3 secs and multiplied by 2")
 
 			// you can also create a promise to wrap the callback function
 			// 'promise' is a member of the iqtest object. iqtest maps
@@ -133,21 +150,31 @@ An example. This is similar to what's in the example here, some tests are design
 	
 			// now use p just like any promise-returning function		
 			
-			assert.equals(124,p,"Hoping to get 'xxx'");
+			a.equals(124,p,"Hoping to get 'xxx'");
 		
 			// use then to explicity wrap code that needs to run inline
             // other than asserts (see "Caveats" below)
 
-			assert.then(function() {
-				assert.isFalse(y,"y is false");
-				assert.equals(10,glob,"global got set by wait");	
+			a.then(function() {
+				a.isFalse(y,"y is false");
+				a.equals(10,glob,"global got set by wait");	
 				y=true;
 			})
 			.then(function() {
-				assert.equals(true,y,"y is now true");
+				a.equals(true,y,"y is now true");
 			})
 			.equals(1,1,"Numbers are equal");
-			
+
+            // if you want to do a bunch of assertions that depend on a callback, use "when"			
+            // it runs the function passed to it, and returns a promise. If the callback happens
+            // to pass a paremeter, it will be passed to the first target of "then"
+
+            a.when(function(cb) {
+                $('#sample').hide('slow',cb);
+            }).then(function()) {
+                a.isFalse($('#sample').is(':visible'));
+            });
+
 		})
 
 ###### Chaining
@@ -164,7 +191,7 @@ Every assert is automatically chained to the one before it, whether or not you u
 
 ###### Caveats
 
-There is definitely some trickery needed to make all this possible. This can have unintended consequences if you don't understand how it works. While the goal is to hide the innard of the async processing as much as possible, there are some things that may trip you up. For example:
+There is definitely some trickery needed to make all this possible. This can have unintended consequences if you don't understand how it works. While the goal is to hide the innards of the async processing as much as possible, there are some things that may trip you up. For example:
 
     var x=0;
 
@@ -233,7 +260,11 @@ A test object as passed to `TestGroup.test`. You generally don't need to use its
 
 		.assert
 
-an `Assert` object, this is passed to the test function as the only parameter
+an `Assert` object, this is passed to the test function as the first parameter
+
+        .refute
+
+a `Refute` object, this is passed to the test function as the 2nd parameter, it is the opposite of assert.
 
 		.then
 
@@ -247,7 +278,20 @@ return a promise made from a callback-enabled function. if no timeout is set, de
 
 create a callback that can be used as a callback target in an assert. If no function is passed, it returns true on success. If a function is provided, its return value is evaluated in the assert.
 
-Create 
+        .when(function(cb))
+
+return a promise that resolves when the function "cb" is executed. That is, this expects "cb" to be used as the callback for an arbitrary async operation (that doesn't natively expose a promise). when will return a promise that resolves when cb is called.
+
+### Project Status
+
+As of 5/15/2012, there are no known bugs in assertion handling and promise dependency resolution. There are certainly some rough edges, particulary when entering "debugging" mode following failed assertions. 
+
+TODO: 
+
+Make a nicer looking web browser output handler.
+Write some documentation.
+Make an output handler that just logs statistics.
+
 
 ### Markdown
 
