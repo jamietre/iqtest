@@ -288,15 +288,6 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             doEvent.call(this,this,"teardown");
             group.promise.resolve();
         }
-
-        // if (test===group.tests[group.tests.length-1]) {
-        //     if (u.isBool(test.passed)) {
-        //         group.passed=test._allPass;
-        //     }
-        //     group.doWriterEvent("groupEnd",u.filterProps(test,"passed"));
-        //     doEvent.call(this,this,"teardown");
-        //     group.promise.resolve();
-        // }
     }
 
 
@@ -305,6 +296,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
 
         doEvent.call(this,this,"setup");
 
+        this.reset();
         u.each(me.tests,function(i,test) {
             test.reset();
         });
@@ -347,6 +339,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 testFinished(me,test);
             });
         });
+        return this;
     }
     // call function "event" that is a member of each element in activeWriters, with args
     // should be called with the sender event context
@@ -405,7 +398,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
         run: groupRun,
         // a promise that resolves when a "run" operation finishes 
         then: function() {
-            return this.promise.then;
+            return this.promise.then.apply(this,u.toArray(arguments));
         },
         configure: function(options) {
             if (typeof options === 'string') {
@@ -453,7 +446,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
         u.extend(me, options, true);
         me.id=null;
         me.group=null;
-        me.reset();
+        me.clear();
 
         this.doWriterEvent = function() {
             doWriterEvent.apply(this,u.toArray(arguments));
@@ -479,9 +472,12 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 passed: null
 
             });
-            this.setDebug(false);
+
             // resolve immediately to start the chain when the first thing is added
             this.promise.resolve();
+        },
+        clear: function() {
+            this.setDebug(false);
         },
         setDebug: function(active,count) {
             this.debug=u.isBool(active) ? active : true;
@@ -530,13 +526,14 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 next = when.defer();
             
             me.promise = next;
-            prev.then(function(){
+            prev.then(function(val) {
+
                 try {
                     if (me.nextIsProblemAssertion()) {
                         // the next event is the one causing you trouble
                         debugger;
                     }
-                    callback();
+                    callback(val);
                 }
                 catch(err){
                     me.testerror("An error occurred during a 'then' clause of an assertion: "+String(err),true);
@@ -555,6 +552,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             this.promise = next.promise;
             prev.then(callback,errback || this.testerror);
             when.chain(prev,next);
+            return this;
         },
         //TODO
         afterNext: function(callback,errback) {
@@ -718,8 +716,9 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 }
             },function reject(err) {
                 if (me.itemRunning) {
-                    me.endTest({ passed: false,
-                        desc: String(err)
+                    me.endTest({ 
+                        passed: false,
+                        err: String(err)
                     });
                 }
                 next.reject("The test was stopped because an assertion failed.");
@@ -784,7 +783,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                     passfail,
                     output.passed ? 
                         '' : 
-                        ': ' + result.desc,
+                        ': ' + result.err,
                     
                     u.format(' in test "{0}"', this.assertionInfo.desc) 
                         
@@ -851,6 +850,33 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 deferred.resolve(value);
             };
         },
+        /*creates a promise bound to the resolution of a callback, and adds it to the
+            assertion queue. usage (note "callback" parameter)
+          
+            this.when(function(callback) {
+                doSomething(arg1,arg2,callback)
+            }).then(function(response) {
+                a.equals(expected,response)
+            });
+
+            
+
+        */
+        when: function(func,timeout) {
+            var t=timeout || this.timeout,
+                next = when.defer(),
+                last = this.promise;
+            
+
+            this.promise = t ? when_timeout(next, t*1000) : next;
+
+            last.then(function() {
+                func.call(this,next.resolve);
+            });
+
+            return this;
+
+        },
         // return a promise from a function that has a callback parameter
         backpromise: function(func,callback,timeout) {
             var defer=when.defer(),
@@ -858,21 +884,22 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 t=timeout || me.timeout,
                 cb=function() {
                     var value;
-                    if (me.debug) {
-                        value=callback.apply(this,u.toArray(arguments));
-                    } else {
-                        try
-                        {
+                    if (callback) {
+                        if (me.debug) {
                             value=callback.apply(this,u.toArray(arguments));
-                        }
-                        catch(err)
-                        {
-                            me.testerror("An error occurred in your backpromise() callback: "+err,true);
-                            defer.reject(value);
-                            return;
+                        } else {
+                            try
+                            {
+                                value=callback.apply(this,u.toArray(arguments));
+                            }
+                            catch(err)
+                            {
+                                me.testerror("An error occurred in your backpromise() callback: "+err,true);
+                                defer.reject(value);
+                                return;
+                            }
                         }
                     }
-
                     defer.resolve(value);
                 };
             

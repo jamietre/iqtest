@@ -52,19 +52,33 @@
 		$('#startTest').bind('click',function(e) {
 			group.run();
 		});
+		group.add("Test callback alone",function(a,r) {
+			this.when(function(cb) {
+				waitcb(1,cb);
+			}).then(function(r) {
+
+				a.equals(1,r,"when wait resolved");
+			});
+		});
 
 		group.add("Small Test (#1), about 4 total",function(a,r) {
-
-			a.equals(1,1,"a test");
-			a.resolves(wait(8),"resolves");
-			this.assert(true,"assert true");
-			r.truthy(true,"False isn't true!!")
-			.then(function() {
-					a.equals(1,1,"In my then1");
-
-
+			a.truthy(true,"True is true")
+				.then(function() {
+						a.equals(1,1,"In my then1");
+				});
+			
+			this.when(function(cb) {
+				waitcb(2,cb);
+			}).then(function(r) {
+				a.equals(1,r,"when wait resolved");
 			});
-			a.truthy(waitcb(3,a.callback()),"Waited 3 secs");
+
+			//a.equals(1,1,"a test");
+			a.resolves(wait(14),"resolves");
+			//this.assert(true,"assert true");
+			
+			
+			//a.truthy(waitcb(3,a.callback()),"Waited 3 secs");
 			this.assert(wait(2),"Just waiting to resolve");
 		
 			a.equals(1,1,"refute 1=1");
