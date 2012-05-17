@@ -112,12 +112,17 @@ define(function() {
             checkCallbacks(arguments);
 
             var nextValue;
-            //try {
+            if (!when.debug) {
+                try {
+                    nextValue = callback && callback(value);
+                    return promise(nextValue === undef ? value : nextValue);
+                } catch(e) {
+                    return rejected(e);
+                }
+            } else {
                 nextValue = callback && callback(value);
                 return promise(nextValue === undef ? value : nextValue);
-            //} catch(e) {
-            //    return rejected(e);
-            //}
+            }
         };
 
         // Not frozen because this should never be exposed
@@ -141,7 +146,19 @@ define(function() {
             checkCallbacks(arguments);
 
             var nextValue;
-            //try {
+            if (!when.debug) {
+                try {
+                    if(errback) {
+                        nextValue = errback(reason);
+                        return promise(nextValue === undef ? reason : nextValue)
+                    }
+
+                    return rejected(reason);
+
+                } catch(e) {
+                    return rejected(e);
+                }
+            } else {
                 if(errback) {
                     nextValue = errback(reason);
                     return promise(nextValue === undef ? reason : nextValue)
@@ -149,9 +166,7 @@ define(function() {
 
                 return rejected(reason);
 
-            //} catch(e) {
-                return rejected(e);
-            //}
+            }
         };
 
         // Not frozen because this should never be exposed
@@ -728,6 +743,9 @@ define(function() {
 
     when.chain     = chain;
 
+    // when true, will not trap errors
+
+    when.debug     = false;
     return when;
 });
 })(typeof define == 'function'

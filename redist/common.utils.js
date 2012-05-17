@@ -1,26 +1,26 @@
 /* common.utils.js: a core framework library of utilities and polyfills.
    
-   This adds utility functions into a namespace u.
+This adds utility functions into a namespace u.
 
-   Standard polyfills are automatically added to their prototypes. The following nonstandard prototype
-   changes are made:
+Standard polyfills are automatically added to their prototypes. The following nonstandard prototype
+changes are made:
         
-        String.format
-        String.split with trim option
-        Array.contains
-        Array.first
+String.format
+String.split with trim option
+Array.contains
+Array.first
 
-   You can remove the call to u.polyfill to prevent the nonstandard changes.
+You can remove the call to u.polyfill to prevent the nonstandard changes.
 
-   Version 1.0
-   James Treworgy
+Version 1.0
+James Treworgy
 */
 
 /*global define, require, module */
-/*jslint curly: false */
+/*jslint curly: false, expr: true */
 (function (define) {
     define(function () {
-        var u,nativeSplit=String.prototype.split;
+        var u;
 
         /* General puropose functions */
 
@@ -48,6 +48,8 @@
         function forEach(cb, trim) {
             var coll = this,
                 i, val;
+            if (!coll) return;
+
             if (isString(coll)) {
                 coll = coll.split(',');
             }
@@ -77,13 +79,13 @@
                 arguments[0] :
                 arguments;
             return this.replace(/\{(\d+)\}/g, function (match, number) {
-                var num = parseInt(number,10);
+                var num = parseInt(number, 10);
                 return !isUndefined(args[num])
                     ? String(args[num])
                     : match;
             });
         }
-        
+
         // a split function that trims its results. any 'true' bool parameter will be interpreted as a flag to trim
         function stringSplit(delimiter, trimResults) {
             var result = [],
@@ -94,7 +96,7 @@
                     isBool(trimResults) ?
                         trimResults : false;
 
-            forEach.call(nativeSplit.call(this,delim || ','), function (i, e) {
+            forEach.call(String.prototype.split.call(this, delim || ','), function (i, e) {
                 result.push(trim ? stringTrim(e) : e);
             });
             return result;
@@ -127,10 +129,10 @@
 
         // return the first element where filter returns true
         function arrayFirst(filter) {
-            var i,undef;
-            
+            var i, undef;
+
             if (!filter) {
-                return this.length>0 ? this[0] : undef;
+                return this.length > 0 ? this[0] : undef;
             }
 
             for (i = 0; i < this.length; i++) {
@@ -258,7 +260,7 @@
             // usual each, if you happen to pass a string, it will split it on commas.
             // it will always trim string values in an array.
             each: function (coll, cb) {
-                return forEach.call(coll, cb);
+                coll && forEach.call(coll, cb);
             },
             donothing: function () { },
             // add nonstandard polyfills
@@ -268,11 +270,6 @@
                 Array.prototype.first = arrayFirst;
 
                 String.prototype.format = format;
-
-                // always replace split, ours is better
-                if (String.prototype.split !== stringSplit) {
-                    String.prototype.split = stringSplit;
-                }
             }
 
         };
