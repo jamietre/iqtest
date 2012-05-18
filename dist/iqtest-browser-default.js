@@ -3103,6 +3103,7 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             
 
         },
+
         // create a callback that the next assert will wait for, optionally expiring.
         callback: function(target,timeout) {
             var me=this,
@@ -3139,7 +3140,8 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
                 deferred.resolve(value);
             };
         },
-        /*creates a promise bound to the resolution of a callback, and adds it to the
+        
+        /*  creates a promise bound to the resolution of a callback, and adds it to the
             assertion queue. usage (note "callback" parameter)
           
             this.when(function(callback) {
@@ -3147,10 +3149,9 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             }).then(function(response) {
                 a.equals(expected,response)
             });
-
-            
-
+        
         */
+
         when: function(func,timeout) {
             var me=this,
                 t=timeout || me.timeout,
@@ -3172,7 +3173,27 @@ define(['./iqtest'], function(u,when,when_timeout, iq_asserts, buster_asserts, u
             });
 
             return me;
+        },
 
+        // create a new deferred object (same as when.defer) and bind completion of the tests to its
+        // resolution
+
+        defer: function(callback,timeout) {
+            var me = this,
+                next = when.defer(),
+                t = timeout || me.timeout;
+            
+            // just replace the active promise -- there is no dependency on the prior
+            // promise because user code is responsible for resolving this promise.
+
+            me.promise = t ? when_timeout(next, t*1000) : next;
+
+            if (callback) {
+                // we don't need to bind an error handler to the callback because this is now
+                // the last promise on the chain.
+                next.then(callback);
+            }
+            return next;
         },
         // return a promise from a function that has a callback parameter
         backpromise: function(func,callback,timeout) {

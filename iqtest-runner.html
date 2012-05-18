@@ -59,7 +59,14 @@
 
 				a.equals(1,r,"when wait resolved");
 			});
+
+			var promise = this.defer(function(r) {
+				a.equals(3,r,"my promise worked");
+			});
+			waitcb(1,promise.resolve);
 		});
+		
+		return;
 
 		group.add("Small Test (#1), about 4 total",function(a,r) {
 			a.truthy(true,"True is true")
@@ -85,7 +92,7 @@
 			// test failures
 			// a.contentsEqual(true,[1,2],"Simple arrays are the same");
 			// a.contentsEqual([1,2,3],[1,2],"Simple arrays are the same");
-			 a.contentsEqual([1,2,3,4],[1,2,3,4],"Simple arrays are the same");
+			 a.collectionEquals([1,2,3,4],[1,2,3,4],"Simple arrays are the same");
 			//a.contentsEqual({prop1: "prop1value", prop2: "prop2value"},{prop1: "prop1value", prop2: "prop2value-diff"},"Simple arrays are the same");
 		
 		});
