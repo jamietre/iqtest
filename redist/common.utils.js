@@ -184,10 +184,11 @@ James Treworgy
         }
 
         u = {
-            // when onlyInSource is true, properties will not be added - only updated
+            // when onlyInTarget is true, properties will not be added - only updated
             // passing a falsy value as the target results in a new object being created
-            // and onlyInTarget is irrelevant
-            extend: function (target) {
+            // and onlyInTarget is ignored (properties must be added to a new object)
+
+            extend: function (target /*[,onlyInTarget]*/) {
                 var prop, source, sources, i,
                 li = arguments.length,
                 lastBool = u.isBool(arguments[li - 1]),

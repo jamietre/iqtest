@@ -140,9 +140,9 @@ define(function(iqtest) {
         // Two things should have the same contents. If this is an object, the values of each property must be identical.
         // if an array, they must have the same elements, but order is irrelevant.
         // If a string, it is split on commas and treated as a CSV. 
-        contentsEqual: contentsEqual,
-        propertiesEqual: propertiesEqual,
-        valuePropertiesEqual: valuePropertiesEqual
+        collectionEquals: contentsEqual,
+        propertyEquals: propertiesEqual,
+        propertyValueEquals: valuePropertiesEqual
     };
 
 
