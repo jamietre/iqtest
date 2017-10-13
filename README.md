@@ -11,7 +11,7 @@ iqtest is a unit testing framework that leverages promises to make your life muc
 
 Unit testing Javascript is historically a big pain because of the lack of adequate language features to write concise event-handling code.
 
-Some more recent works have improved matters, e.g. [Mocha](http://visionmedia.github.com/mocha/ "Mocha"). From the outset, though, I never got into Jasmine or Mocha because I didn't want to learn a new language. Despite the popularity of common-language Javascript constructs, I've found that having to learn a whole new dialect for an application creates more barriers to use than the dialect itself solves. But I would have been willing to do that if that dialect was going to result in concise, expressive code. 
+Some more recent works have improved matters, e.g. [Mocha](http://mochajs.org/ "Mocha"). From the outset, though, I never got into Jasmine or Mocha because I didn't want to learn a new language. Despite the popularity of common-language Javascript constructs, I've found that having to learn a whole new dialect for an application creates more barriers to use than the dialect itself solves. But I would have been willing to do that if that dialect was going to result in concise, expressive code. 
 
 So how can we create async tests with Mocha?
 
